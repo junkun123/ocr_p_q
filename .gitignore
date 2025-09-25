@@ -1,0 +1,23 @@
+# Entornos virtuales
+ocr_env/
+venv_trocr310/
+
+# Node modules
+frontend/node_modules/
+
+# Archivos grandes/datasets
+Book-Scan-OCR/
+image_back/
+*.jpg
+*.png
+*.jpeg
+*.csv
+*.txt
+
+# Archivos de compilación
+__pycache__/
+*.pyc
+*.pyo
+
+# Subidas
+web_integration/uploads/

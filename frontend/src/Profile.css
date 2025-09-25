@@ -1,0 +1,46 @@
+.profile-container {
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #2b2b2b;
+    border-radius: 8px;
+    color: #f1f1f1;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.profile-container h1, .profile-container h2 {
+    color: #50E3C2;
+    border-bottom: 2px solid #444;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.profile-container p {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.badges-container, .github-stats-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 1.5rem;
+    justify-content: center;
+}
+
+.github-stats-container img {
+    max-width: 100%;
+    height: auto;
+}
+
+.divider {
+    border: none;
+    height: 12px;
+    background: linear-gradient(90deg, #0d47a1 0%, #42a5f5 50%, #0d47a1 100%);
+    border-radius: 6px;
+    margin: 2rem 0;
+}
+
+.contact-info {
+    font-size: 1.1rem;
+}
