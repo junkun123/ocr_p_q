@@ -1,23 +1,27 @@
 import flask
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import subprocess
 import os
 import fitz
 import google.generativeai as genai
+from PIL import Image
+import io
+import mimetypes
+from pdf2docx import Converter as PDFtoDOCXConverter
+from docx2pdf import convert as DOCXtoPDFConverter
+import tempfile
 
 app = Flask(__name__)
 CORS(app)
 
+# Crea una carpeta temporal para los archivos
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'web_integration', 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # Configura tu clave API de Gemini
-# Es mejor usar una variable de entorno para mayor seguridad.
-# Puedes configurarla en tu terminal: export GOOGLE_API_KEY='tu_clave'
-# O pegarla directamente para propósitos de prueba.
-genai.configure(api_key="AIzaSyD_nLuyOC6Vb3UjWpBFF19bnxvBjyGWMSc")
+genai.configure(api_key="AIzaSyC7Z_F1Kp4CpTby2mmjjighY6mxGIAiot8")
 
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
@@ -66,7 +70,7 @@ def ocr_endpoint():
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-# --- Nuevo endpoint para preguntar a la IA ---
+# --- Endpoint para preguntar a la IA ---
 @app.route('/ask', methods=['POST'])
 def ask_question():
     data = request.json
@@ -77,7 +81,7 @@ def ask_question():
         return jsonify({"success": False, "error": "Faltan datos (pregunta o texto_extraido)."}), 400
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-pro')
         prompt = f"""
         Dado el siguiente texto extraído de un documento, responde a la pregunta que se te hará. 
         Si la respuesta no se encuentra en el texto, di que no puedes responder basándote solo en la información proporcionada.
@@ -92,10 +96,7 @@ def ask_question():
         """
         response = model.generate_content(prompt)
         
-        # Verifica si el contenido fue bloqueado
         if not response.parts:
-            # Si se bloquea, response.prompt_feedback tendrá información.
-            # Aquí asumimos que el error es por contenido inseguro o no válido.
             feedback = response.prompt_feedback
             if feedback and feedback.block_reason:
                 return jsonify({
@@ -111,9 +112,67 @@ def ask_question():
         return jsonify({"success": True, "respuesta": response.text})
 
     except Exception as e:
-        # Esta línea imprimirá el error completo en tu terminal
         print(f"Error al interactuar con la IA: {e}")
         return jsonify({"success": False, "error": f"Error al interactuar con la IA. Revisa la terminal del servidor para más detalles."}), 500
+
+# --- NUEVO ENDPOINT PARA CONVERSIÓN DE ARCHIVOS ---
+@app.route('/convert', methods=['POST'])
+def convert_file():
+    if 'file' not in request.files or 'type' not in request.form:
+        return jsonify({"error": "Faltan datos (archivo o tipo de conversión)."}), 400
+
+    file = request.files['file']
+    conversion_type = request.form['type']
+    
+    # Crea un archivo temporal para guardar el archivo recibido
+    temp_input_fd, temp_input_path = tempfile.mkstemp(suffix=os.path.splitext(file.filename)[1])
+    file.save(temp_input_path)
+    os.close(temp_input_fd)
+    
+    try:
+        if conversion_type == 'jpg-to-png':
+            img = Image.open(temp_input_path)
+            output_buffer = io.BytesIO()
+            img.save(output_buffer, format="PNG")
+            output_buffer.seek(0)
+            return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.png')
+        
+        elif conversion_type == 'png-to-jpg':
+            img = Image.open(temp_input_path)
+            rgb_img = img.convert('RGB')
+            output_buffer = io.BytesIO()
+            rgb_img.save(output_buffer, format="JPEG")
+            output_buffer.seek(0)
+            return send_file(output_buffer, mimetype='image/jpeg', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.jpg')
+
+        elif conversion_type == 'pdf-to-word':
+            temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".docx")
+            os.close(temp_output_fd)
+            cv = PDFtoDOCXConverter(temp_input_path)
+            cv.convert(temp_output_path, start=0, end=None)
+            cv.close()
+            return send_file(temp_output_path, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.docx')
+
+        elif conversion_type == 'word-to-pdf':
+            temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".pdf")
+            os.close(temp_output_fd)
+            DOCXtoPDFConverter(temp_input_path, temp_output_path)
+            return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.pdf')
+        
+        else:
+            return jsonify({"error": "Tipo de conversión no soportado."}), 400
+
+    except Exception as e:
+        print(f"Error en la conversión: {e}")
+        return jsonify({"error": f"Error al procesar la conversión: {str(e)}"}), 500
+    finally:
+        # Limpia los archivos temporales
+        if os.path.exists(temp_input_path):
+            os.remove(temp_input_path)
+        # Esto elimina el archivo de salida si fue creado
+        if 'temp_output_path' in locals() and os.path.exists(temp_output_path):
+            os.remove(temp_output_path)
+    
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5000)

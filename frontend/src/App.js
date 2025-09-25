@@ -24,8 +24,8 @@ const AIModal = ({ ocrText, onClose }) => {
     };
 
     try {
-      // **URL de ngrok actualizada**
-      const response = await fetch('https://c888baba8c75.ngrok-free.app/ask', {
+      // **URL de ngrok para el servidor de Flask**
+      const response = await fetch('https://6dc8dd526864.ngrok-free.app/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,6 +82,7 @@ const AIModal = ({ ocrText, onClose }) => {
   );
 };
 
+// Componente de la página de OCR
 const OCRPage = () => {
   const [file, setFile] = useState(null);
   const [ocrText, setOcrText] = useState('El texto extraído aparecerá aquí...');
@@ -106,8 +107,8 @@ const OCRPage = () => {
     formData.append('file', file);
 
     try {
-      // **URL de ngrok actualizada**
-      const response = await fetch('https://c888baba8c75.ngrok-free.app/ocr', {
+      // **URL de ngrok para el servidor de Flask**
+      const response = await fetch('https://6dc8dd526864.ngrok-free.app/ocr', {
         method: 'POST',
         body: formData,
       });
@@ -163,6 +164,90 @@ const OCRPage = () => {
   );
 };
 
+// Componente de la nueva página del conversor de archivos
+const FileConverterPage = () => {
+  const [file, setFile] = useState(null);
+  const [conversionType, setConversionType] = useState('jpg-to-png');
+  const [status, setStatus] = useState('Selecciona un archivo y un tipo de conversión.');
+  const [loading, setLoading] = useState(false);
+  const [convertedFileUrl, setConvertedFileUrl] = useState(null);
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+    setConvertedFileUrl(null);
+  };
+
+  const handleConversion = async () => {
+    if (!file) {
+      setStatus("Por favor, selecciona un archivo.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Convirtiendo archivo, por favor espera...");
+    setConvertedFileUrl(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', conversionType);
+
+    try {
+      // **AQUÍ NECESITAS CREAR UN NUEVO ENDPOINT EN FLASK**
+      // Por ejemplo: 'https://tu-url-de-ngrok.ngrok-free.app/convert'
+      // Este endpoint recibirá el archivo y el tipo de conversión.
+      const response = await fetch('https://6dc8dd526864.ngrok-free.app/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error HTTP! status: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setConvertedFileUrl(url);
+      setStatus("¡Conversión exitosa! Haz clic en el enlace para descargar.");
+    } catch (error) {
+      setStatus(`Error en la conversión: ${error}. Asegúrate de que el servidor de Flask tenga un endpoint '/convert'.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="container main-content">
+      <header className="App-header">
+        <h1>Convertidor de Archivos</h1>
+        <p>Convierte tus documentos e imágenes a diferentes formatos.</p>
+        <div className="form-group">
+          <input type="file" onChange={handleFileChange} />
+        </div>
+        <div className="form-group">
+          <label>Convertir de:</label>
+          <select onChange={(e) => setConversionType(e.target.value)} value={conversionType}>
+            <option value="jpg-to-png">JPG a PNG</option>
+            <option value="png-to-jpg">PNG a JPG</option>
+            <option value="pdf-to-word">PDF a DOCX</option>
+            <option value="word-to-pdf">DOCX a PDF</option>
+          </select>
+        </div>
+        <button onClick={handleConversion} disabled={loading}>
+          {loading ? 'Convirtiendo...' : 'Convertir'}
+        </button>
+        <div className="status-box">
+          <p>{status}</p>
+          {convertedFileUrl && (
+            <a href={convertedFileUrl} download className="download-link">
+              Descargar archivo convertido
+            </a>
+          )}
+        </div>
+      </header>
+    </div>
+  );
+};
+
 // ... Resto de los componentes (AboutPage, FeaturesPage, App) ...
 
 const AboutPage = () => (
@@ -176,8 +261,7 @@ const FeaturesPage = () => (
     <h2>Próximos Agregados</h2>
     <div className="collapsible-content">
       <ul>
-        <li>Convertidor de PDF a texto</li>
-        <li>Convertidor de Word a PDF</li>
+        <li>Convertidor de archivos (JPG, PNG, PDF, Word)</li>
         <li>Soporte para más idiomas (francés, alemán, etc.)</li>
       </ul>
     </div>
@@ -197,6 +281,7 @@ function App() {
           </button>
           <div className={`nav-links ${navOpen ? 'open' : ''}`}>
             <Link to="/">Extractor de Texto</Link>
+            <Link to="/convertir-archivos">Convertir Archivos</Link>
             <Link to="/proximos-agregados">Próximos agregados</Link>
             <Link to="/conoceme">Conóceme</Link>
           </div>
@@ -204,6 +289,7 @@ function App() {
         <div className="content-wrapper">
           <Routes>
             <Route path="/" element={<OCRPage />} />
+            <Route path="/convertir-archivos" element={<FileConverterPage />} />
             <Route path="/proximos-agregados" element={<FeaturesPage />} />
             <Route path="/conoceme" element={<AboutPage />} />
           </Routes>
