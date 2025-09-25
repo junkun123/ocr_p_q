@@ -1,23 +1,36 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
 # Entornos virtuales
 ocr_env/
 venv_trocr310/
 
-# Node modules
-frontend/node_modules/
+# Archivos temporales
+*.log
+*.tmp
 
-# Archivos grandes/datasets
+# --- Node / React ---
+frontend/node_modules/
+frontend/.env
+frontend/build/
+frontend/dist/
+
+# --- Datos / Imágenes ---
 Book-Scan-OCR/
 image_back/
+web_integration/uploads/
 *.jpg
-*.png
 *.jpeg
+*.png
 *.csv
 *.txt
 
-# Archivos de compilación
-__pycache__/
-*.pyc
-*.pyo
-
-# Subidas
-web_integration/uploads/
+# --- IDEs / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
