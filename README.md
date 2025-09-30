@@ -133,7 +133,7 @@ http://192.168.1.153:3000   # Acceso desde otros dispositivos en tu red
 ## 👨‍💻 Autor
 
 Proyecto desarrollado por **[Jun]** ✨
-📧 Contacto: [tunombre@correo.com](mailto:tunombre@correo.com)
+📧 Contacto: [tunombre@correo.com](mailto:jjuancitop1@gmail.com)
 
 Si te gustó este proyecto, ¡dale ⭐ en GitHub! 🚀
 
