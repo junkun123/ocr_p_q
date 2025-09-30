@@ -1,96 +1,141 @@
+# 📖 Proyecto OCR con Flask + React
 
-# OCR_P_Q 📄🔍
+Este proyecto es una aplicación web **OCR (Reconocimiento Óptico de Caracteres)** que permite subir imágenes y obtener el texto reconocido.
+Está construida con **Flask (backend)** y **React (frontend)**, diseñada para correr en un entorno local o en red interna.
 
-Un proyecto de **OCR (Reconocimiento Óptico de Caracteres)** basado en Python que permite capturar texto desde imágenes y procesarlo mediante una interfaz web simple.
+---
 
-## 🚀 Características
+## 🚀 Tecnologías utilizadas
 
-* Extracción de texto desde imágenes usando OCR.
-* Interfaz web para cargar imágenes y visualizar resultados.
-* Scripts de conversión y procesamiento.
-* Código modular y fácil de extender.
+* **Backend**: [Flask](https://flask.palletsprojects.com/) (API REST para OCR)
+* **Frontend**: [React](https://reactjs.org/) (interfaz moderna e interactiva)
+* **OCR**: [Tesseract](https://github.com/tesseract-ocr/tesseract) o librerías de Python (como `pytesseract`)
+* **Servidor**: Node.js + Python
+
+---
 
 ## 📂 Estructura del proyecto
 
+```bash
+projetc/
+├── frontend/          # Interfaz React
+│   ├── src/           # Código fuente del frontend
+│   └── package.json   # Configuración de npm
+├── scripts/
+│   └── api.py         # Servidor Flask (backend OCR)
+├── uploads/           # Carpeta temporal para imágenes
+├── requirements.txt   # Dependencias de Python
+└── README.md          # Este archivo 😎
 ```
-ocr_p_q/
-├── frontend/           # Archivos del frontend web
-├── scripts/            # Scripts para procesamiento OCR
-├── requirements.txt    # Dependencias del proyecto
-├── texto_capturado.txt # Ejemplo de salida OCR
-├── README.md           # Documentación
-└── .gitignore          # Reglas de exclusión
+
+---
+
+## ⚙️ Instalación y configuración
+
+### 🔹 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/usuario/projetc.git
+cd projetc
 ```
 
-## ⚙️ Requisitos
+### 🔹 2. Crear y activar entorno virtual
 
-* Python 3.8+
-* pip
+```bash
+python -m venv ocr_env
+source ocr_env/bin/activate   # Linux/Mac
+ocr_env\Scripts\activate      # Windows
+```
 
-Dependencias principales (ver `requirements.txt`):
+### 🔹 3. Instalar dependencias de Python
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## ▶️ Uso
+### 🔹 4. Instalar dependencias de Node.js (frontend)
 
-1. Clona el repositorio:
-
-   ```bash
-   git clone https://github.com/tuusuario/ocr_p_q.git
-   cd ocr_p_q
-   ```
-
-2. Instala dependencias:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Ejecuta la aplicación:
-
-   ```bash
-   python scripts/app.py
-   ```
-
-   *(Reemplazar con el script principal si difiere)*
-
-4. Abre en tu navegador:
-
-   ```
-   http://localhost:5000
-   ```
-
-5. Carga una imagen y obtén el texto en pantalla.
-
-## 📌 Ejemplo de resultado
-
-Imagen de entrada:
-
-![Ejemplo](https://via.placeholder.com/300x150.png?text=Texto+Ejemplo)
-
-Salida en `texto_capturado.txt`:
-
+```bash
+cd frontend
+npm install
 ```
-Texto Ejemplo
-```
-
-## 🛠️ Contribución
-
-1. Haz un fork 🍴
-2. Crea una rama: `git checkout -b mi-feature`
-3. Haz commit: `git commit -m 'Agrego nueva funcionalidad'`
-4. Haz push: `git push origin mi-feature`
-5. Abre un Pull Request
-
-## 📄 Licencia
-
-Este proyecto está bajo la licencia MIT. Puedes usarlo libremente en proyectos personales y comerciales.
 
 ---
 
-✍️ Autor: **junkun123**
+## ▶️ Ejecución del proyecto
+
+### 🔹 1. Iniciar el backend (Flask)
+
+Desde la carpeta raíz del proyecto:
+
+```bash
+python scripts/api.py
+```
+
+El servidor Flask correrá en:
+
+```
+http://127.0.0.1:5000
+http://192.168.1.153:5000   # Acceso desde tu red local
+```
+
+---
+
+### 🔹 2. Iniciar el frontend (React)
+
+En otra terminal:
+
+```bash
+cd frontend
+npm start -- --host 0.0.0.0
+```
+
+El frontend correrá en:
+
+```
+http://localhost:3000
+http://192.168.1.153:3000   # Acceso desde otros dispositivos en tu red
+```
+
+---
+
+## 📸 Uso del sistema
+
+1. Abre el navegador y entra a **[http://localhost:3000](http://localhost:3000)**
+2. Sube una imagen con texto
+3. El sistema procesará la imagen y mostrará el **texto reconocido** en pantalla
+4. Si el backend está corriendo en red, podrás acceder desde otros dispositivos en **[http://192.168.1.153:3000](http://192.168.1.153:3000)**
+
+---
+
+## 🛠️ Troubleshooting
+
+* ❌ **Error: Flask solo visible en localhost**
+  → Asegúrate de correrlo con `host='0.0.0.0'` en `api.py`
+
+* ❌ **El frontend no detecta el backend**
+  → Revisa que la URL de la API en React (`src/config.js` o similar) apunte a
+  `http://127.0.0.1:5000` o a la IP de tu red.
+
+* ❌ **Problemas con Tesseract**
+  → Verifica que esté instalado en tu sistema y accesible desde Python.
+
+---
+
+## 📌 Notas importantes
+
+* Este proyecto está en **modo desarrollo**.
+* Para producción se recomienda usar **WSGI (Gunicorn / uWSGI)** + **Nginx** en lugar del servidor de desarrollo de Flask.
+* Configura variables de entorno si planeas desplegarlo en la nube.
+
+---
+
+## 👨‍💻 Autor
+
+Proyecto desarrollado por **[Jun]** ✨
+📧 Contacto: [tunombre@correo.com](mailto:tunombre@correo.com)
+
+Si te gustó este proyecto, ¡dale ⭐ en GitHub! 🚀
 
 ## Acknowledgements
 
