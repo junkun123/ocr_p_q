@@ -24,8 +24,8 @@ const AIModal = ({ ocrText, onClose }) => {
     };
 
     try {
-      // **URL de ngrok para el servidor de Flask**
-      const response = await fetch('https://6dc8dd526864.ngrok-free.app/ask', {
+      // **URL de ngrok para el servidor de Flask - ACTUALIZADA**
+      const response = await fetch('https://ccade8a74c90.ngrok-free.app/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -48,7 +48,7 @@ const AIModal = ({ ocrText, onClose }) => {
         setRespuestaAI(`Error: ${result.error}`);
       }
     } catch (error) {
-      setRespuestaAI(`Error de conexión con la IA: ${error}`);
+      setRespuestaAI(`Error de conexión con la IA: ${error}.`);
     } finally {
       setLoadingAI(false);
     }
@@ -107,8 +107,8 @@ const OCRPage = () => {
     formData.append('file', file);
 
     try {
-      // **URL de ngrok para el servidor de Flask**
-      const response = await fetch('https://6dc8dd526864.ngrok-free.app/ocr', {
+      // **URL de ngrok para el servidor de Flask - ACTUALIZADA**
+      const response = await fetch('https://ccade8a74c90.ngrok-free.app/ocr', {
         method: 'POST',
         body: formData,
       });
@@ -192,10 +192,8 @@ const FileConverterPage = () => {
     formData.append('type', conversionType);
 
     try {
-      // **AQUÍ NECESITAS CREAR UN NUEVO ENDPOINT EN FLASK**
-      // Por ejemplo: 'https://tu-url-de-ngrok.ngrok-free.app/convert'
-      // Este endpoint recibirá el archivo y el tipo de conversión.
-      const response = await fetch('https://6dc8dd526864.ngrok-free.app/convert', {
+      // **URL de ngrok para el servidor de Flask - ACTUALIZADA**
+      const response = await fetch('https://ccade8a74c90.ngrok-free.app/convert', {
         method: 'POST',
         body: formData,
       });
@@ -205,11 +203,42 @@ const FileConverterPage = () => {
       }
       
       const blob = await response.blob();
+      
+      // Determina la extensión y el mimetype para la descarga
+      let ext = '';
+      let mime = '';
+      
+      switch(conversionType) {
+        case 'jpg-to-png':
+        case 'png-to-jpg':
+          ext = conversionType.includes('png') ? '.png' : '.jpg';
+          mime = conversionType.includes('png') ? 'image/png' : 'image/jpeg';
+          break;
+        case 'pdf-to-word':
+          ext = '.docx';
+          mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          break;
+        case 'word-to-pdf':
+          ext = '.pdf';
+          mime = 'application/pdf';
+          break;
+        default:
+          ext = '.bin';
+          mime = 'application/octet-stream';
+      }
+
+      // Crea un objeto File para la descarga
+      const filename = file.name.split('.').slice(0, -1).join('.') + ext;
+      
+      // Crea un enlace de descarga
       const url = URL.createObjectURL(blob);
       setConvertedFileUrl(url);
       setStatus("¡Conversión exitosa! Haz clic en el enlace para descargar.");
+
+      // Opcional: Si quieres forzar la descarga, podrías hacerlo aquí, pero la propiedad 'download' en <a> es más limpia.
+      
     } catch (error) {
-      setStatus(`Error en la conversión: ${error}. Asegúrate de que el servidor de Flask tenga un endpoint '/convert'.`);
+      setStatus(`Error en la conversión: ${error}. Asegúrate de que el servidor de Flask tenga un endpoint '/convert' y que las bibliotecas estén instaladas.`);
     } finally {
       setLoading(false);
     }
@@ -224,12 +253,12 @@ const FileConverterPage = () => {
           <input type="file" onChange={handleFileChange} />
         </div>
         <div className="form-group">
-          <label>Convertir de:</label>
+          <label>Convertir a:</label>
           <select onChange={(e) => setConversionType(e.target.value)} value={conversionType}>
             <option value="jpg-to-png">JPG a PNG</option>
             <option value="png-to-jpg">PNG a JPG</option>
-            <option value="pdf-to-word">PDF a DOCX</option>
-            <option value="word-to-pdf">DOCX a PDF</option>
+            <option value="pdf-to-word">PDF a DOCX (Word)</option>
+            <option value="word-to-pdf">DOCX (Word) a PDF</option>
           </select>
         </div>
         <button onClick={handleConversion} disabled={loading}>
@@ -238,7 +267,7 @@ const FileConverterPage = () => {
         <div className="status-box">
           <p>{status}</p>
           {convertedFileUrl && (
-            <a href={convertedFileUrl} download className="download-link">
+            <a href={convertedFileUrl} download={`archivo_convertido${conversionType.includes('png') ? '.png' : conversionType.includes('jpg') ? '.jpg' : conversionType.includes('word') ? '.docx' : '.pdf'}`} className="download-link">
               Descargar archivo convertido
             </a>
           )}
@@ -261,7 +290,7 @@ const FeaturesPage = () => (
     <h2>Próximos Agregados</h2>
     <div className="collapsible-content">
       <ul>
-        <li>Convertidor de archivos (JPG, PNG, PDF, Word)</li>
+        <li>Convertidor de archivos (JPG, PNG, PDF, Word) - **¡Agregado y en funcionamiento!**</li>
         <li>Soporte para más idiomas (francés, alemán, etc.)</li>
       </ul>
     </div>
