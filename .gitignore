@@ -13,6 +13,8 @@ venv_trocr310/
 *.log
 *.tmp
 
+
+
 # --- Node / React ---
 frontend/node_modules/
 frontend/.env
