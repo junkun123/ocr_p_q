@@ -1,46 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import './App.css'; // Importa el archivo CSS separado
+import './App.css'; 
 import Profile from './Profile'; 
 
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = 'https://e3a29c624b60.ngrok-free.app'; 
+const NGROK_FLASK_URL = ' https://91d6f4c00334.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
-/**
- * Función de utilidad que espera a que las voces del SpeechSynthesis estén cargadas.
- * Esto soluciona el error 'synthesis-failed' que ocurre cuando se intenta usar getVoices()
- * antes de que el navegador esté listo.
- */
-const loadVoices = () => {
-  return new Promise(resolve => {
-    // Si las voces ya están cargadas, resuelve inmediatamente
-    let voices = window.speechSynthesis.getVoices();
-    if (voices.length) {
-      resolve(voices);
-      return;
-    }
-    
-    // Si no están cargadas, espera el evento 'voiceschanged'
-    window.speechSynthesis.onvoiceschanged = () => {
-      resolve(window.speechSynthesis.getVoices());
-    };
-    
-    // Fallback: Si el evento no se dispara inmediatamente, espera 1 segundo
-    setTimeout(() => {
-        voices = window.speechSynthesis.getVoices();
-        if (voices.length) {
-            resolve(voices);
-        } else {
-            console.warn("Las voces de Speech Synthesis no se pudieron cargar rápidamente. Retornando vacío.");
-            resolve([]);
-        }
-    }, 1000); 
-  });
-};
-
+// Referencia global para el objeto de audio que se está reproduciendo
+let currentAudio = null;
 
 // Componente para la ventana modal de la IA
 const AIModal = ({ ocrText, onClose }) => {
@@ -52,11 +22,25 @@ const AIModal = ({ ocrText, onClose }) => {
   
   // Detiene la síntesis de voz si se está reproduciendo
   const stopSpeaking = () => {
+    // Detiene la reproducción de la API nativa (como fallback)
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      setLoadingTTS(false);
     }
+    // Detiene la reproducción de la nueva implementación de Audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+    setLoadingTTS(false);
   };
+  
+  // Detener la reproducción al desmontar el componente (al cerrar el modal)
+  useEffect(() => {
+    // Este código se ejecuta cuando el componente se desmonta (modal se cierra)
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
   const askQuestion = async () => {
     // Primero, detén cualquier reproducción de voz anterior
@@ -111,11 +95,10 @@ const AIModal = ({ ocrText, onClose }) => {
     }
   };
   
-  // Función para usar la API nativa del navegador (SpeechSynthesisUtterance)
+  // FUNCIÓN MODIFICADA PARA USAR EL ENDPOINT DE FLASK Y GEMINI TTS
   const speakResponse = async () => {
-    if (!window.speechSynthesis || !lastAIResponseText) {
-      // Usar un modal en lugar de alert() sería mejor en un entorno real
-      alert("Tu navegador no soporta la síntesis de voz, o no hay texto para leer.");
+    if (!lastAIResponseText) {
+      alert("No hay texto para leer.");
       return;
     }
 
@@ -125,47 +108,61 @@ const AIModal = ({ ocrText, onClose }) => {
         return;
     }
 
-    setLoadingTTS(true); // Indica que la síntesis está comenzando
+    // 1. Iniciar la carga
+    stopSpeaking(); // Asegura detener cualquier reproducción anterior
+    setLoadingTTS(true); 
 
     try {
-        // 1. Carga las voces esperando la respuesta asíncrona
-        const voices = await loadVoices();
+        const data = {
+            text: lastAIResponseText
+        };
         
-        if (voices.length === 0) {
-          throw new Error("No hay voces de TTS disponibles en tu sistema operativo.");
-        }
-        
-        const utterance = new SpeechSynthesisUtterance(lastAIResponseText);
-        
-        // 2. Selecciona la mejor voz (español o la primera disponible)
-        const spanishVoice = voices.find(voice => voice.lang.startsWith('es'));
-        
-        if (spanishVoice) {
-          utterance.voice = spanishVoice;
-          utterance.lang = spanishVoice.lang; 
-        } else {
-          // Fallback a la primera voz y un hint de idioma español
-          utterance.voice = voices[0];
-          utterance.lang = 'es-ES'; 
-          console.warn("No se encontró una voz en español. Usando la voz por defecto.");
+        // 2. Llamar al endpoint de Flask /tts
+        const response = await fetch(`${NGROK_FLASK_URL}/tts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error HTTP en la llamada a TTS! status: ${response.status}`);
         }
 
-        utterance.onstart = () => setLoadingTTS(true);
-        utterance.onend = () => setLoadingTTS(false);
-        utterance.onerror = (event) => {
-            console.error('SpeechSynthesis Utterance Error:', event);
-            // Usar un modal en lugar de alert() sería mejor en un entorno real
-            alert(`Ocurrió un error en la síntesis de voz: ${event.error}. Esto puede deberse a la falta de voces en español. Intenta recargar la página o verificar la configuración de voces de tu sistema operativo.`);
+        const result = await response.json();
+        
+        if (!result.success || !result.audioData || !result.mimeType) {
+            throw new Error(`La respuesta de Gemini TTS fue incompleta: ${result.error || 'datos faltantes'}`);
+        }
+
+        // 3. Crear el objeto de audio a partir del Base64
+        // El formato es: data:<mimeType>;base64,<audioData>
+        const audioSrc = `data:${result.mimeType};base64,${result.audioData}`;
+        
+        const audio = new Audio(audioSrc);
+        currentAudio = audio; // Guarda la referencia global
+        
+        audio.onended = () => {
+            setLoadingTTS(false); // Detener cuando termina de reproducirse
+            currentAudio = null;
+        };
+        
+        audio.onerror = (e) => {
+            console.error('Error al reproducir el audio:', e);
+            alert("Ocurrió un error al reproducir el audio decodificado. El formato puede no ser compatible o el archivo está corrupto.");
             setLoadingTTS(false);
+            currentAudio = null;
         };
 
-        window.speechSynthesis.speak(utterance);
+        // 4. Reproducir el audio
+        await audio.play();
 
     } catch (error) {
-        console.error('Error al intentar hablar:', error);
-        // Usar un modal en lugar de alert() sería mejor en un entorno real
-        alert(`Error crítico en la función de voz: ${error.message}`);
+        console.error('Error crítico en la función de voz (Flask/Gemini TTS):', error);
+        alert(`Error: ${error.message}. Asegúrate de que Flask esté ejecutándose y tu clave API de Gemini sea válida.`);
         setLoadingTTS(false);
+        currentAudio = null;
     }
   };
 

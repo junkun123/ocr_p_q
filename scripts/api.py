@@ -15,7 +15,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 import pandas as pd
 import json
-import base64 # Importación reincorporada para manejar el audio TTS
+import base64
+from gtts import gTTS # <--- IMPORTACIÓN DE gTTS
 
 app = Flask(__name__)
 CORS(app)
@@ -77,7 +78,7 @@ def ocr_endpoint():
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-# --- Endpoint para preguntar a la IA ---
+# --- Endpoint para preguntar a la IA (Gemini) ---
 @app.route('/ask', methods=['POST'])
 def ask_question():
     data = request.json
@@ -124,7 +125,7 @@ def ask_question():
         print(f"Error al interactuar con la IA: {e}")
         return jsonify({"success": False, "error": f"Error al interactuar con la IA. Revisa la terminal del servidor para más detalles."}), 500
 
-# --- NUEVO ENDPOINT PARA SÍNTESIS DE VOZ (TTS) ---
+# --- ENDPOINT PARA SÍNTESIS DE VOZ (TTS) UTILIZANDO gTTS ---
 @app.route('/tts', methods=['POST'])
 def synthesize_speech():
     data = request.json
@@ -134,39 +135,26 @@ def synthesize_speech():
         return jsonify({"error": "No se proporcionó texto para la síntesis de voz."}), 400
 
     try:
-        # Llama al modelo TTS de Gemini
-        tts_model = genai.GenerativeModel('gemini-2.5-flash-preview-tts')
+        # Genera la voz usando gTTS
+        tts = gTTS(text_to_speak, lang='es')
         
-        # Configuración para voz y audio PCM
-        generation_config = {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {
-                "voiceConfig": {
-                    "prebuiltVoiceConfig": {"voiceName": "Kore"} # Voz firme y clara
-                }
-            }
-        }
+        # Guarda el audio en un buffer en memoria (MP3)
+        audio_buffer = io.BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
         
-        response = tts_model.generate_content(text_to_speak, generation_config=generation_config)
-
-        audio_part = response.candidates[0].content.parts[0]
+        # Codifica el audio MP3 a base64
+        audio_data_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
         
-        if 'inlineData' in audio_part:
-            # El audio PCM está codificado en base64
-            audio_data_base64 = audio_part['inlineData']['data']
-            mime_type = audio_part['inlineData']['mimeType']
-            
-            return jsonify({
-                "success": True, 
-                "audioData": audio_data_base64,
-                "mimeType": mime_type # Contiene información como sampleRate=16000
-            })
-        
-        return jsonify({"success": False, "error": "No se generaron datos de audio."}), 500
+        return jsonify({
+            "success": True, 
+            "audioData": audio_data_base64,
+            "mimeType": "audio/mp3" # Devolvemos MP3
+        })
 
     except Exception as e:
-        print(f"Error en la síntesis de voz con Gemini: {e}")
-        return jsonify({"success": False, "error": f"Error en la API de TTS: {str(e)}"}), 500
+        print(f"Error en la síntesis de voz con gTTS: {e}")
+        return jsonify({"success": False, "error": f"Error en la API de TTS (gTTS): {str(e)}"}), 500
 
 
 # --- ENDPOINT PARA CONVERSIÓN DE ARCHIVOS ---
