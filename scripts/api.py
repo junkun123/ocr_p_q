@@ -3,9 +3,9 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import subprocess
 import os
-import fitz
+import fitz # PyMuPDF
 import google.generativeai as genai
-from PIL import Image
+from PIL import Image # Pillow
 import io
 import mimetypes
 from pdf2docx import Converter as PDFtoDOCXConverter
@@ -13,23 +13,28 @@ from docx2pdf import convert as DOCXtoPDFConverter
 import tempfile
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-import pandas as pd
+import pandas as pd 
 import json
 import base64
-from gtts import gTTS # <--- IMPORTACIÓN DE gTTS
+from gtts import gTTS 
 
 app = Flask(__name__)
 CORS(app)
 
 # Crea una carpeta temporal para los archivos
+# Nota: Esto crea la carpeta 'uploads' un nivel arriba si estás ejecutando api.py dentro de una subcarpeta.
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'web_integration', 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # Configura tu clave API de Gemini
-# Utiliza una clave de API segura
+# ¡ADVERTENCIA! Reemplaza esto con tu clave real. 
+# En una aplicación real, usa variables de entorno para la seguridad.
 genai.configure(api_key="AIzaSyA9q3-vZMMyyOspekQ5weWoaLXJj7OtG64")
 
+# --------------------------------------------------------------------------------
+# 1. ENDPOINT DE OCR
+# --------------------------------------------------------------------------------
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
     if 'file' not in request.files:
@@ -50,11 +55,12 @@ def ocr_endpoint():
             if file_ext == '.pdf':
                 doc = fitz.open(filepath)
                 for page in doc:
+                    # Extraer imagen de la página para pasar al script de OCR
                     pix = page.get_pixmap(dpi=300)
                     temp_image_path = os.path.join(UPLOAD_FOLDER, f"temp_page_{page.number}.png")
                     pix.save(temp_image_path)
                     
-                    # Asumiendo que 'ocr_lector_documento.py' es un script que usa Tesseract o similar
+                    # Llamar al script de OCR (asume que existe ocr_lector_documento.py)
                     comando = ["python", os.path.join(os.path.dirname(__file__), "ocr_lector_documento.py"), temp_image_path]
                     page_text = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
                     
@@ -65,20 +71,25 @@ def ocr_endpoint():
                 doc.close()
             
             else:
+                # Procesa imágenes directamente
                 comando = ["python", os.path.join(os.path.dirname(__file__), "ocr_lector_documento.py"), filepath]
                 texto_extraido = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
             
             return jsonify({"success": True, "text": texto_extraido})
             
         except subprocess.CalledProcessError as e:
-            return jsonify({"success": False, "error": f"Error en el script de OCR: {e.output}"}), 500
+            print(f"Error en subprocess: {e.output}")
+            return jsonify({"success": False, "error": f"Error en el script de OCR. Asegúrate de que 'ocr_lector_documento.py' y Tesseract estén funcionando: {e.output}"}), 500
         except Exception as e:
+            print(f"Error general en OCR: {str(e)}")
             return jsonify({"success": False, "error": f"Error al procesar el archivo: {str(e)}"}), 500
         finally:
             if os.path.exists(filepath):
                 os.remove(filepath)
 
-# --- Endpoint para preguntar a la IA (Gemini) ---
+# --------------------------------------------------------------------------------
+# 2. ENDPOINT PARA PREGUNTAR A LA IA (GEMINI)
+# --------------------------------------------------------------------------------
 @app.route('/ask', methods=['POST'])
 def ask_question():
     data = request.json
@@ -89,7 +100,6 @@ def ask_question():
         return jsonify({"success": False, "error": "Faltan datos (pregunta o texto_extraido)."}), 400
 
     try:
-        # Modelo actualizado para asegurar compatibilidad
         model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
         
         prompt = f"""
@@ -107,25 +117,26 @@ def ask_question():
         response = model.generate_content(prompt)
         
         if not response.parts:
+            # Manejo de contenido bloqueado o respuesta vacía
             feedback = response.prompt_feedback
+            error_msg = "Respuesta vacía de la IA."
             if feedback and feedback.block_reason:
-                return jsonify({
-                    "success": False,
-                    "error": f"El contenido de la pregunta o el texto fue bloqueado por la IA. Razón: {feedback.block_reason}"
-                }), 500
-            else:
-                return jsonify({
-                    "success": False,
-                    "error": "Respuesta vacía de la IA. Posiblemente debido a contenido no válido o error interno."
-                }), 500
+                error_msg = f"Contenido bloqueado: {feedback.block_reason}"
+            
+            return jsonify({
+                "success": False,
+                "error": error_msg
+            }), 500
         
         return jsonify({"success": True, "respuesta": response.text})
 
     except Exception as e:
         print(f"Error al interactuar con la IA: {e}")
-        return jsonify({"success": False, "error": f"Error al interactuar con la IA. Revisa la terminal del servidor para más detalles."}), 500
+        return jsonify({"success": False, "error": f"Error al interactuar con la IA. Detalles: {str(e)}"}), 500
 
-# --- ENDPOINT PARA SÍNTESIS DE VOZ (TTS) UTILIZANDO gTTS ---
+# --------------------------------------------------------------------------------
+# 3. ENDPOINT PARA SÍNTESIS DE VOZ (TTS)
+# --------------------------------------------------------------------------------
 @app.route('/tts', methods=['POST'])
 def synthesize_speech():
     data = request.json
@@ -143,21 +154,22 @@ def synthesize_speech():
         tts.write_to_fp(audio_buffer)
         audio_buffer.seek(0)
         
-        # Codifica el audio MP3 a base64
+        # Codifica el audio MP3 a base64 para enviarlo al frontend
         audio_data_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
         
         return jsonify({
             "success": True, 
             "audioData": audio_data_base64,
-            "mimeType": "audio/mp3" # Devolvemos MP3
+            "mimeType": "audio/mp3"
         })
 
     except Exception as e:
         print(f"Error en la síntesis de voz con gTTS: {e}")
         return jsonify({"success": False, "error": f"Error en la API de TTS (gTTS): {str(e)}"}), 500
 
-
-# --- ENDPOINT PARA CONVERSIÓN DE ARCHIVOS ---
+# --------------------------------------------------------------------------------
+# 4. ENDPOINT PARA CONVERSIÓN DE ARCHIVOS
+# --------------------------------------------------------------------------------
 @app.route('/convert', methods=['POST'])
 def convert_file():
     if 'file' not in request.files or 'type' not in request.form:
@@ -166,7 +178,7 @@ def convert_file():
     file = request.files['file']
     conversion_type = request.form['type']
     
-    # Crea un archivo temporal para guardar el archivo recibido
+    # Crea un archivo temporal para el archivo de entrada
     file_ext = os.path.splitext(file.filename)[1]
     temp_input_fd, temp_input_path = tempfile.mkstemp(suffix=file_ext)
     file.save(temp_input_path)
@@ -175,6 +187,7 @@ def convert_file():
     temp_output_path = None # Inicializar para el bloque finally
 
     try:
+        # --- Conversiones de Imagen ---
         if conversion_type == 'jpg-to-png':
             img = Image.open(temp_input_path)
             output_buffer = io.BytesIO()
@@ -211,12 +224,13 @@ def convert_file():
             return send_file(output_buffer, mimetype='image/gif', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.gif')
 
         elif conversion_type == 'gif-to-png':
-            img = Image.open(temp_input_path).convert('RGBA') # Convertir a RGBA para compatibilidad PNG
+            img = Image.open(temp_input_path).convert('RGBA') 
             output_buffer = io.BytesIO()
             img.save(output_buffer, format="PNG")
             output_buffer.seek(0)
             return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.png')
 
+        # --- Conversiones de Documentos ---
         elif conversion_type == 'pdf-to-word':
             temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".docx")
             os.close(temp_output_fd)
@@ -232,19 +246,16 @@ def convert_file():
             return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.pdf')
         
         elif conversion_type == 'text-to-pdf':
-            # La entrada es un archivo .txt, lo convertimos a PDF
             temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".pdf")
             os.close(temp_output_fd)
             
             c = canvas.Canvas(temp_output_path, pagesize=letter)
-            # Leer el contenido del archivo .txt
             with open(temp_input_path, 'r', encoding='utf-8') as f:
                 text_content = f.read()
 
             textobject = c.beginText(50, 750)
             textobject.setFont("Helvetica", 10)
             
-            # Dividir el texto por líneas y escribirlo
             for line in text_content.split('\n'):
                 textobject.textLine(line)
             
@@ -253,7 +264,6 @@ def convert_file():
             return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.pdf')
 
         elif conversion_type == 'pdf-to-text':
-            # Extrae el texto simple de un PDF
             doc = fitz.open(temp_input_path)
             text_content = ""
             for page in doc:
@@ -265,8 +275,8 @@ def convert_file():
             
             return send_file(output_buffer, mimetype='text/plain', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.txt')
 
+        # --- Conversiones de Datos ---
         elif conversion_type == 'text-to-html':
-            # Envuelve el texto en una estructura HTML básica
             with open(temp_input_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             html_content = f"""
@@ -286,11 +296,9 @@ def convert_file():
             return send_file(output_buffer, mimetype='text/html', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.html')
 
         elif conversion_type == 'text-to-json':
-            # Intenta parsear el texto como una lista de líneas o un objeto simple
             with open(temp_input_path, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
             
-            # Suponemos que cada línea es un ítem de una lista
             data = [line.strip() for line in content.split('\n') if line.strip()]
             
             json_content = json.dumps(data, indent=4, ensure_ascii=False)
@@ -299,16 +307,24 @@ def convert_file():
             return send_file(output_buffer, mimetype='application/json', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.json')
 
         elif conversion_type == 'pdf-to-csv':
-            # Extrae el texto del PDF y lo convierte en un formato CSV básico (asumiendo que los datos están separados por espacios o tabulaciones)
             doc = fitz.open(temp_input_path)
             all_text = ""
             for page in doc:
                 all_text += page.get_text() + "\n"
             doc.close()
 
-            # Usar pandas para intentar leer los datos como una tabla
+            if not all_text.strip():
+                raise ValueError("El PDF no contiene texto para convertir a CSV.")
+
             from io import StringIO
-            df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', skipinitialspace=True)
+            
+            # Intenta parsear como tabla separada por múltiples espacios
+            df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', on_bad_lines='skip')
+            
+            if df.empty:
+                # Si falla, crea un DataFrame simple (una columna con el contenido del PDF)
+                lines = [line.strip() for line in all_text.split('\n') if line.strip()]
+                df = pd.DataFrame(lines, columns=['Content'])
             
             output_buffer = io.BytesIO()
             df.to_csv(output_buffer, index=False, encoding='utf-8')
@@ -321,16 +337,17 @@ def convert_file():
             return jsonify({"error": "Tipo de conversión no soportado."}), 400
 
     except Exception as e:
-        print(f"Error en la conversión: {e}")
+        # Imprime el error específico en la consola de Flask para depuración
+        print(f"Error CRÍTICO en la conversión: {e}")
         return jsonify({"error": f"Error al procesar la conversión: {str(e)}"}), 500
     finally:
         # Limpia los archivos temporales
         if os.path.exists(temp_input_path):
             os.remove(temp_input_path)
-        # Esto elimina el archivo de salida si fue creado
         if 'temp_output_path' in locals() and temp_output_path and os.path.exists(temp_output_path):
             os.remove(temp_output_path)
-    
+
 
 if __name__ == '__main__':
+    # Ejecuta el servidor en modo debug para ver los errores en la terminal
     app.run(host='0.0.0.0', debug=True, port=5000)

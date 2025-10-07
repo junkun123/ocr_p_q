@@ -6,11 +6,95 @@ import Profile from './Profile';
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = ' https://91d6f4c00334.ngrok-free.app'; 
+const NGROK_FLASK_URL = 'https://5f522559ad2b.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
 // Referencia global para el objeto de audio que se está reproduciendo
 let currentAudio = null;
+
+// Función global para detener la reproducción de voz
+const stopSpeaking = () => {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+};
+
+// Función para llamar al backend de TTS y reproducir el audio Base64
+const speakTextFromBackend = async (textToSpeak, setLoadingState) => {
+    // Nota: Aquí NO llamamos a stopSpeaking(). La función de llamada (e.g., speakOcrText)
+    // es responsable de detener la reproducción ANTES de llamar a esta función, si es necesario.
+    
+    if (!textToSpeak) {
+        alert("No hay texto para leer.");
+        setLoadingState(false);
+        return;
+    }
+
+    // El estado de carga ya debería estar en true aquí.
+    
+    try {
+        const data = { text: textToSpeak };
+        
+        // 1. Llamar al endpoint de Flask /tts
+        const response = await fetch(`${NGROK_FLASK_URL}/tts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error HTTP en la llamada a TTS! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (!result.success || !result.audioData || !result.mimeType) {
+            throw new Error(`La respuesta de TTS fue incompleta: ${result.error || 'datos faltantes'}`);
+        }
+
+        // 2. Crear el objeto de audio a partir del Base64
+        const audioSrc = `data:${result.mimeType};base64,${result.audioData}`;
+        
+        const audio = new Audio(audioSrc);
+        currentAudio = audio; 
+        
+        audio.onended = () => {
+            setLoadingState(false);
+            currentAudio = null; 
+        };
+        
+        audio.onerror = (e) => {
+            console.error('Error al reproducir el audio:', e);
+            alert("Ocurrió un error al reproducir el audio decodificado.");
+            setLoadingState(false);
+            currentAudio = null;
+        };
+
+        // 3. Reproducir el audio
+        await audio.play().catch(error => {
+             // Este catch es vital para atrapar el AbortError y otros errores de reproducción
+            if (error.name !== "AbortError") {
+                console.error("Error al iniciar la reproducción:", error);
+                alert(`Error al iniciar la reproducción: ${error.message}`);
+            }
+            setLoadingState(false);
+            currentAudio = null;
+        });
+
+    } catch (error) {
+        console.error('Error crítico en la función de voz (Flask/gTTS):', error);
+        alert(`Error: ${error.message}. Asegúrate de que Flask esté ejecutándose y el endpoint /tts funcione correctamente.`);
+        setLoadingState(false);
+        currentAudio = null;
+    }
+};
+
 
 // Componente para la ventana modal de la IA
 const AIModal = ({ ocrText, onClose }) => {
@@ -20,32 +104,18 @@ const AIModal = ({ ocrText, onClose }) => {
   const [loadingTTS, setLoadingTTS] = useState(false);
   const [lastAIResponseText, setLastAIResponseText] = useState('');
   
-  // Detiene la síntesis de voz si se está reproduciendo
-  const stopSpeaking = () => {
-    // Detiene la reproducción de la API nativa (como fallback)
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    // Detiene la reproducción de la nueva implementación de Audio
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio = null;
-    }
-    setLoadingTTS(false);
-  };
-  
   // Detener la reproducción al desmontar el componente (al cerrar el modal)
   useEffect(() => {
-    // Este código se ejecuta cuando el componente se desmonta (modal se cierra)
     return () => {
       stopSpeaking();
     };
   }, []);
 
   const askQuestion = async () => {
-    // Primero, detén cualquier reproducción de voz anterior
+    // Siempre detiene la voz ANTES de una nueva acción principal
     stopSpeaking(); 
-    
+    setLoadingTTS(false); // Resetea el estado de lectura de la AI
+
     if (!pregunta || !ocrText || ocrText === 'El texto extraído aparecerá aquí...' || ocrText === 'Procesando, por favor espera...') {
       setRespuestaAI("Por favor, extrae el texto de un documento primero.");
       return;
@@ -74,8 +144,8 @@ const AIModal = ({ ocrText, onClose }) => {
         return;
       }
       if (response.status === 404) {
-         setRespuestaAI(`Error 404: No se encontró el endpoint /ask. Verifica la URL de NGROK (${NGROK_FLASK_URL}).`);
-         return;
+        setRespuestaAI(`Error 404: No se encontró el endpoint /ask. Verifica la URL de NGROK (${NGROK_FLASK_URL}).`);
+        return;
       }
       if (!response.ok) {
         throw new Error(`Error HTTP! status: ${response.status}`);
@@ -95,75 +165,16 @@ const AIModal = ({ ocrText, onClose }) => {
     }
   };
   
-  // FUNCIÓN MODIFICADA PARA USAR EL ENDPOINT DE FLASK Y GEMINI TTS
+  // Función específica para la respuesta de la IA (llama a la función genérica)
   const speakResponse = async () => {
-    if (!lastAIResponseText) {
-      alert("No hay texto para leer.");
-      return;
-    }
-
     if (loadingTTS) {
-        // Si ya está leyendo, lo cancelamos y reseteamos
-        stopSpeaking();
+        stopSpeaking(); // Detiene si ya está leyendo
+        setLoadingTTS(false);
         return;
     }
-
-    // 1. Iniciar la carga
-    stopSpeaking(); // Asegura detener cualquier reproducción anterior
-    setLoadingTTS(true); 
-
-    try {
-        const data = {
-            text: lastAIResponseText
-        };
-        
-        // 2. Llamar al endpoint de Flask /tts
-        const response = await fetch(`${NGROK_FLASK_URL}/tts`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error HTTP en la llamada a TTS! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        
-        if (!result.success || !result.audioData || !result.mimeType) {
-            throw new Error(`La respuesta de Gemini TTS fue incompleta: ${result.error || 'datos faltantes'}`);
-        }
-
-        // 3. Crear el objeto de audio a partir del Base64
-        // El formato es: data:<mimeType>;base64,<audioData>
-        const audioSrc = `data:${result.mimeType};base64,${result.audioData}`;
-        
-        const audio = new Audio(audioSrc);
-        currentAudio = audio; // Guarda la referencia global
-        
-        audio.onended = () => {
-            setLoadingTTS(false); // Detener cuando termina de reproducirse
-            currentAudio = null;
-        };
-        
-        audio.onerror = (e) => {
-            console.error('Error al reproducir el audio:', e);
-            alert("Ocurrió un error al reproducir el audio decodificado. El formato puede no ser compatible o el archivo está corrupto.");
-            setLoadingTTS(false);
-            currentAudio = null;
-        };
-
-        // 4. Reproducir el audio
-        await audio.play();
-
-    } catch (error) {
-        console.error('Error crítico en la función de voz (Flask/Gemini TTS):', error);
-        alert(`Error: ${error.message}. Asegúrate de que Flask esté ejecutándose y tu clave API de Gemini sea válida.`);
-        setLoadingTTS(false);
-        currentAudio = null;
-    }
+    // Llama a la función genérica, que manejará la reproducción
+    setLoadingTTS(true);
+    await speakTextFromBackend(lastAIResponseText, setLoadingTTS);
   };
 
   const isResponseReady = lastAIResponseText.length > 0;
@@ -203,19 +214,44 @@ const AIModal = ({ ocrText, onClose }) => {
   );
 };
 
-// Componente de la página de OCR
+// Componente de la página de OCR (Modificado)
 const OCRPage = () => {
   const [file, setFile] = useState(null);
   const [ocrText, setOcrText] = useState('El texto extraído aparecerá aquí...');
   const [loading, setLoading] = useState(false);
+  const [loadingOcrTTS, setLoadingOcrTTS] = useState(false); // Nuevo estado de carga TTS para OCR
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false); 
+  
+  // Función específica para el texto de OCR (llama a la función genérica)
+  const speakOcrText = async () => {
+    if (loadingOcrTTS) {
+        stopSpeaking(); // Detiene si ya está leyendo
+        setLoadingOcrTTS(false);
+        return;
+    }
+    // Llama a la función genérica, que manejará la reproducción
+    setLoadingOcrTTS(true);
+    await speakTextFromBackend(ocrText, setLoadingOcrTTS);
+  };
+  
+  // Detener la reproducción al iniciar el OCR
+  useEffect(() => {
+    if (loading) {
+      stopSpeaking();
+      setLoadingOcrTTS(false);
+    }
+  }, [loading]);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
   };
 
   const uploadAndProcess = async () => {
+    // Siempre detiene la voz ANTES de una nueva acción principal
+    stopSpeaking(); 
+    setLoadingOcrTTS(false); // Resetea el estado de lectura del OCR
+    
     if (!file) {
       setOcrText("Por favor, selecciona un archivo.");
       return;
@@ -234,8 +270,8 @@ const OCRPage = () => {
       });
 
       if (response.status === 404) {
-         setOcrText(`Error 404: No se encontró el endpoint /ocr. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
-         return;
+        setOcrText(`Error 404: No se encontró el endpoint /ocr. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
+        return;
       }
 
       if (!response.ok) {
@@ -256,6 +292,8 @@ const OCRPage = () => {
   
   const displayedText = isExpanded ? ocrText : `${ocrText.substring(0, 500)}${ocrText.length > 500 ? '...' : ''}`;
   const showButton = ocrText.length > 500 && ocrText !== 'El texto extraído aparecerá aquí...' && !loading;
+  
+  const isOcrTextReady = ocrText.length > 0 && ocrText !== 'El texto extraído aparecerá aquí...' && !ocrText.startsWith('Procesando') && !ocrText.startsWith('Error');
 
   return (
     <div className="container main-content">
@@ -277,8 +315,23 @@ const OCRPage = () => {
           )}
         </div>
         
+        {/* BOTÓN DE TTS PARA EL EXTRACTOR DE TEXTO (NUEVO) */}
+        {isOcrTextReady && (
+          <button 
+            onClick={speakOcrText} 
+            disabled={loading || !isOcrTextReady}
+            className={`tts-button ${loadingOcrTTS ? 'tts-speaking' : ''}`}
+          >
+            {loadingOcrTTS ? '🛑 Detener Lectura' : '🔊 Escuchar Texto Extraído'}
+          </button>
+        )}
+        
         {/* Botón para abrir el modal */}
-        <button onClick={() => setShowModal(true)} disabled={ocrText === 'El texto extraído aparecerá aquí...' || loading || ocrText.startsWith('Error')}>
+        <button 
+          onClick={() => setShowModal(true)} 
+          disabled={!isOcrTextReady}
+          className="ask-ai-button"
+        >
           Preguntar a la IA
         </button>
 
@@ -291,6 +344,7 @@ const OCRPage = () => {
 
 // Componente de la nueva página del conversor de archivos
 const FileConverterPage = () => {
+  // ... (El código de FileConverterPage se mantiene sin cambios) ...
   const [file, setFile] = useState(null);
   const [conversionType, setConversionType] = useState('jpg-to-png');
   const [status, setStatus] = useState('Selecciona un archivo y un tipo de conversión.');
@@ -300,6 +354,26 @@ const FileConverterPage = () => {
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
     setConvertedFileUrl(null);
+  };
+
+  const getFileExtension = (conversionType) => {
+    switch(conversionType) {
+        case 'jpg-to-png':
+        case 'webp-to-png':
+          return '.png';
+        case 'png-to-jpg':
+          return '.jpg';
+        case 'pdf-to-word':
+          return '.docx';
+        case 'word-to-pdf':
+          return '.pdf';
+        case 'png-to-webp':
+          return '.webp';
+        case 'pdf-to-csv':
+          return '.csv';
+        default:
+          return '.bin';
+    }
   };
 
   const handleConversion = async () => {
@@ -323,8 +397,8 @@ const FileConverterPage = () => {
       });
 
       if (response.status === 404) {
-         setStatus(`Error 404: No se encontró el endpoint /convert. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
-         return;
+        setStatus(`Error 404: No se encontró el endpoint /convert. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
+        return;
       }
 
       if (!response.ok) {
@@ -333,23 +407,8 @@ const FileConverterPage = () => {
       
       const blob = await response.blob();
       
-      // Determina la extensión para la descarga
-      let ext = '';
-      
-      switch(conversionType) {
-        case 'jpg-to-png':
-        case 'png-to-jpg':
-          ext = conversionType.includes('png') ? '.png' : '.jpg';
-          break;
-        case 'pdf-to-word':
-          ext = '.docx';
-          break;
-        case 'word-to-pdf':
-          ext = '.pdf';
-          break;
-        default:
-          ext = '.bin';
-      }
+      // Obtener la extensión del archivo de salida
+      const ext = getFileExtension(conversionType); 
 
       // Crea un enlace de descarga
       const url = URL.createObjectURL(blob);
@@ -373,11 +432,15 @@ const FileConverterPage = () => {
         </div>
         <div className="form-group">
           <label>Convertir a:</label>
+          {/* Opciones de conversión ACTUALIZADAS */}
           <select onChange={(e) => setConversionType(e.target.value)} value={conversionType}>
             <option value="jpg-to-png">JPG a PNG</option>
             <option value="png-to-jpg">PNG a JPG</option>
+            <option value="png-to-webp">PNG a WEBP</option>
+            <option value="webp-to-png">WEBP a PNG</option>
             <option value="pdf-to-word">PDF a DOCX (Word)</option>
             <option value="word-to-pdf">DOCX (Word) a PDF</option>
+            <option value="pdf-to-csv">PDF a CSV (Extracción de Tablas)</option>
           </select>
         </div>
         <button onClick={handleConversion} disabled={loading}>
@@ -386,7 +449,11 @@ const FileConverterPage = () => {
         <div className="status-box">
           <p>{status}</p>
           {convertedFileUrl && (
-            <a href={convertedFileUrl} download={`archivo_convertido${conversionType.includes('png') ? '.png' : conversionType.includes('jpg') ? '.jpg' : conversionType.includes('word') ? '.docx' : '.pdf'}`} className="download-link">
+            <a 
+              href={convertedFileUrl} 
+              download={`archivo_convertido${getFileExtension(conversionType)}`} 
+              className="download-link"
+            >
               Descargar archivo convertido
             </a>
           )}
