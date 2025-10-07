@@ -50,7 +50,10 @@ ocr_env\Scripts\activate      # Windows
 ### 🔹 3. Instalar dependencias de Python
 
 ```bash
+cd /var/www/html/project
+source /var/www/html/projetc/ocr_env/bin/activate
 pip install -r requirements.txt
+
 ```
 
 ### 🔹 4. Instalar dependencias de Node.js (frontend)
@@ -108,7 +111,7 @@ http://192.168.1.153:3000   # Acceso desde otros dispositivos en tu red
 1. Abre el navegador y entra a **[http://localhost:3000](http://localhost:3000)**
 2. Sube una imagen con texto
 3. El sistema procesará la imagen y mostrará el **texto reconocido** en pantalla
-4. Si el backend está corriendo en red, podrás acceder desde otros dispositivos en **[http://192.168.1.153:3000](http://192.168.1.153:3000)**
+4. Si el backend está corriendo en red, podrás acceder desde otros dispositivos en **[http://192.168.1.x:3000](http://192.168.1.x:3000)**
 
 ---
 
