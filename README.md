@@ -30,7 +30,7 @@ projetc/
 
 ---
 
-## ⚙️ Instalación y configuración
+## ⚙️ Instalación y configuración 
 
 ### 🔹 1. Clonar el repositorio
 
@@ -56,7 +56,8 @@ pip install -r requirements.txt
 ### 🔹 4. Instalar dependencias de Node.js (frontend)
 
 ```bash
-cd frontend
+cd /var/www/html/projetc
+cd frontend 
 npm install
 ```
 
@@ -68,7 +69,10 @@ npm install
 
 Desde la carpeta raíz del proyecto:
 
-```bash
+```
+cd /var/www/html/projetc
+cd frontend 
+source /var/www/html/projetc/ocr_env/bin/activate
 python scripts/api.py
 ```
 
