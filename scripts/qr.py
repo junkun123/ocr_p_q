@@ -9,7 +9,7 @@ link = input("Ingresa el link que quieres convertir en QR: ")
 qr = qrcode.QRCode(
     version=1,  
     error_correction=qrcode.constants.ERROR_CORRECT_L,
-    box_size=10,  # tamaño de cada cuadro del QR
+    box_size=10,  # tamaño 
     border=4,     # grosor del borde
 )
 qr.add_data(link)

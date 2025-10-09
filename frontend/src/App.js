@@ -6,7 +6,7 @@ import Profile from './Profile';
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = 'https://3867ae82810c.ngrok-free.app'; 
+const NGROK_FLASK_URL = 'https://dc17c353641d.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
 // Referencia global para el objeto de audio que se está reproduciendo
