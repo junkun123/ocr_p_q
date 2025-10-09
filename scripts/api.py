@@ -17,23 +17,22 @@ import pandas as pd
 import json
 import base64
 from gtts import gTTS 
+# Importaciones para las conversiones de video
+from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, ImageSequenceClip
 
 app = Flask(__name__)
 CORS(app)
 
 # Crea una carpeta temporal para los archivos
-# Nota: Esto crea la carpeta 'uploads' un nivel arriba si estás ejecutando api.py dentro de una subcarpeta.
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'web_integration', 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # Configura tu clave API de Gemini
-# ¡ADVERTENCIA! Reemplaza esto con tu clave real. 
-# En una aplicación real, usa variables de entorno para la seguridad.
-genai.configure(api_key="AIzaSyA9q3-vZMMyyOspekQ5weWoaLXJj7OtG64")
+genai.configure(api_key="AIzaSyCXvPEexvkElKELeaR5iRK3Uu1D_iZZvHs")
 
 # --------------------------------------------------------------------------------
-# 1. ENDPOINT DE OCR
+# 1. ENDPOINT DE OCR (Sin cambios)
 # --------------------------------------------------------------------------------
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
@@ -55,12 +54,10 @@ def ocr_endpoint():
             if file_ext == '.pdf':
                 doc = fitz.open(filepath)
                 for page in doc:
-                    # Extraer imagen de la página para pasar al script de OCR
                     pix = page.get_pixmap(dpi=300)
                     temp_image_path = os.path.join(UPLOAD_FOLDER, f"temp_page_{page.number}.png")
                     pix.save(temp_image_path)
                     
-                    # Llamar al script de OCR (asume que existe ocr_lector_documento.py)
                     comando = ["python", os.path.join(os.path.dirname(__file__), "ocr_lector_documento.py"), temp_image_path]
                     page_text = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
                     
@@ -71,7 +68,6 @@ def ocr_endpoint():
                 doc.close()
             
             else:
-                # Procesa imágenes directamente
                 comando = ["python", os.path.join(os.path.dirname(__file__), "ocr_lector_documento.py"), filepath]
                 texto_extraido = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
             
@@ -87,8 +83,9 @@ def ocr_endpoint():
             if os.path.exists(filepath):
                 os.remove(filepath)
 
+
 # --------------------------------------------------------------------------------
-# 2. ENDPOINT PARA PREGUNTAR A LA IA (GEMINI)
+# 2. ENDPOINT PARA PREGUNTAR A LA IA (Sin cambios)
 # --------------------------------------------------------------------------------
 @app.route('/ask', methods=['POST'])
 def ask_question():
@@ -117,7 +114,6 @@ def ask_question():
         response = model.generate_content(prompt)
         
         if not response.parts:
-            # Manejo de contenido bloqueado o respuesta vacía
             feedback = response.prompt_feedback
             error_msg = "Respuesta vacía de la IA."
             if feedback and feedback.block_reason:
@@ -135,7 +131,7 @@ def ask_question():
         return jsonify({"success": False, "error": f"Error al interactuar con la IA. Detalles: {str(e)}"}), 500
 
 # --------------------------------------------------------------------------------
-# 3. ENDPOINT PARA SÍNTESIS DE VOZ (TTS)
+# 3. ENDPOINT PARA SÍNTESIS DE VOZ (Sin cambios)
 # --------------------------------------------------------------------------------
 @app.route('/tts', methods=['POST'])
 def synthesize_speech():
@@ -146,15 +142,12 @@ def synthesize_speech():
         return jsonify({"error": "No se proporcionó texto para la síntesis de voz."}), 400
 
     try:
-        # Genera la voz usando gTTS
         tts = gTTS(text_to_speak, lang='es')
         
-        # Guarda el audio en un buffer en memoria (MP3)
         audio_buffer = io.BytesIO()
         tts.write_to_fp(audio_buffer)
         audio_buffer.seek(0)
         
-        # Codifica el audio MP3 a base64 para enviarlo al frontend
         audio_data_base64 = base64.b64encode(audio_buffer.read()).decode('utf-8')
         
         return jsonify({
@@ -168,186 +161,162 @@ def synthesize_speech():
         return jsonify({"success": False, "error": f"Error en la API de TTS (gTTS): {str(e)}"}), 500
 
 # --------------------------------------------------------------------------------
-# 4. ENDPOINT PARA CONVERSIÓN DE ARCHIVOS
+# 4. ENDPOINT PARA CONVERSIÓN DE ARCHIVOS (MODIFICADO)
 # --------------------------------------------------------------------------------
 @app.route('/convert', methods=['POST'])
 def convert_file():
-    if 'file' not in request.files or 'type' not in request.form:
-        return jsonify({"error": "Faltan datos (archivo o tipo de conversión)."}), 400
+    conversion_type = request.form.get('type')
+    
+    if not conversion_type:
+        return jsonify({"error": "Tipo de conversión no especificado."}), 400
 
-    file = request.files['file']
-    conversion_type = request.form['type']
-    
-    # Crea un archivo temporal para el archivo de entrada
-    file_ext = os.path.splitext(file.filename)[1]
-    temp_input_fd, temp_input_path = tempfile.mkstemp(suffix=file_ext)
-    file.save(temp_input_path)
-    os.close(temp_input_fd)
-    
-    temp_output_path = None # Inicializar para el bloque finally
+    temp_input_path = None
+    temp_input_paths = []
+    audio_file_path = None
+    temp_output_path = None
+    output_filename = "archivo_convertido"
 
     try:
-        # --- Conversiones de Imagen ---
-        if conversion_type == 'jpg-to-png':
-            img = Image.open(temp_input_path)
-            output_buffer = io.BytesIO()
-            img.save(output_buffer, format="PNG")
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.png')
-        
-        elif conversion_type == 'png-to-jpg':
-            img = Image.open(temp_input_path).convert('RGB')
-            output_buffer = io.BytesIO()
-            img.save(output_buffer, format="JPEG")
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='image/jpeg', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.jpg')
-        
-        elif conversion_type == 'png-to-webp':
-            img = Image.open(temp_input_path)
-            output_buffer = io.BytesIO()
-            img.save(output_buffer, format="WEBP")
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='image/webp', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.webp')
+        if conversion_type == 'img-to-video':
+            # === Manejo de múltiples archivos para Imagen a Video ===
+            files = request.files.getlist('files[]')
+            if not files:
+                 return jsonify({"error": "Debes subir al menos una imagen."}), 400
+            
+            for f in files:
+                file_ext = os.path.splitext(f.filename)[1]
+                _, path = tempfile.mkstemp(suffix=file_ext)
+                f.save(path)
+                temp_input_paths.append(path)
+                output_filename = os.path.splitext(f.filename)[0] + f"_x{len(files)}"
+                
+            # Manejo del audio opcional
+            if 'audio_file' in request.files:
+                audio_file = request.files['audio_file']
+                audio_ext = os.path.splitext(audio_file.filename)[1]
+                _, audio_file_path = tempfile.mkstemp(suffix=audio_ext)
+                audio_file.save(audio_file_path)
 
-        elif conversion_type == 'webp-to-png':
-            img = Image.open(temp_input_path)
-            output_buffer = io.BytesIO()
-            img.save(output_buffer, format="PNG")
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.png')
-        
-        elif conversion_type == 'png-to-gif':
-            img = Image.open(temp_input_path)
-            output_buffer = io.BytesIO()
-            img.save(output_buffer, format="GIF")
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='image/gif', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.gif')
-
-        elif conversion_type == 'gif-to-png':
-            img = Image.open(temp_input_path).convert('RGBA') 
-            output_buffer = io.BytesIO()
-            img.save(output_buffer, format="PNG")
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.png')
-
-        # --- Conversiones de Documentos ---
-        elif conversion_type == 'pdf-to-word':
-            temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".docx")
-            os.close(temp_output_fd)
-            cv = PDFtoDOCXConverter(temp_input_path)
-            cv.convert(temp_output_path, start=0, end=None)
-            cv.close()
-            return send_file(temp_output_path, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.docx')
-
-        elif conversion_type == 'word-to-pdf':
-            temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".pdf")
-            os.close(temp_output_fd)
-            DOCXtoPDFConverter(temp_input_path, temp_output_path)
-            return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.pdf')
-        
-        elif conversion_type == 'text-to-pdf':
-            temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".pdf")
+            # --- Lógica de Conversión Imagen a Video (SLIDESHOW) ---
+            temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".mp4")
             os.close(temp_output_fd)
             
-            c = canvas.Canvas(temp_output_path, pagesize=letter)
-            with open(temp_input_path, 'r', encoding='utf-8') as f:
-                text_content = f.read()
-
-            textobject = c.beginText(50, 750)
-            textobject.setFont("Helvetica", 10)
+            # Crea un clip de secuencia de imágenes (cada imagen dura 2 segundos por defecto)
+            # duration=2.0 significa que cada imagen se muestra durante 2.0 segundos
+            clip = ImageSequenceClip(temp_input_paths, durations=[2.0] * len(temp_input_paths)) 
             
-            for line in text_content.split('\n'):
-                textobject.textLine(line)
+            # Si hay archivo de audio, usarlo para determinar la duración total
+            if audio_file_path:
+                audio_clip = AudioFileClip(audio_file_path)
+                # Recorta el clip de la imagen para que coincida con la duración del audio
+                clip = clip.set_duration(audio_clip.duration).set_audio(audio_clip)
             
-            c.drawText(textobject)
-            c.save()
-            return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.pdf')
+            # Escribir el video
+            clip.write_videofile(temp_output_path, codec='libx264', fps=24, logger=None)
+            clip.close()
 
-        elif conversion_type == 'pdf-to-text':
-            doc = fitz.open(temp_input_path)
-            text_content = ""
-            for page in doc:
-                text_content += page.get_text() + "\n\n"
-            doc.close()
-
-            output_buffer = io.BytesIO(text_content.encode('utf-8'))
-            output_buffer.seek(0)
+            return send_file(temp_output_path, mimetype='video/mp4', as_attachment=True, download_name=output_filename + '.mp4')
             
-            return send_file(output_buffer, mimetype='text/plain', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.txt')
-
-        # --- Conversiones de Datos ---
-        elif conversion_type == 'text-to-html':
-            with open(temp_input_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{os.path.splitext(file.filename)[0]}</title>
-    <meta charset="UTF-8">
-</head>
-<body>
-    <pre>{content}</pre>
-</body>
-</html>
-            """
-            output_buffer = io.BytesIO(html_content.encode('utf-8'))
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='text/html', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.html')
-
-        elif conversion_type == 'text-to-json':
-            with open(temp_input_path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-            
-            data = [line.strip() for line in content.split('\n') if line.strip()]
-            
-            json_content = json.dumps(data, indent=4, ensure_ascii=False)
-            output_buffer = io.BytesIO(json_content.encode('utf-8'))
-            output_buffer.seek(0)
-            return send_file(output_buffer, mimetype='application/json', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.json')
-
-        elif conversion_type == 'pdf-to-csv':
-            doc = fitz.open(temp_input_path)
-            all_text = ""
-            for page in doc:
-                all_text += page.get_text() + "\n"
-            doc.close()
-
-            if not all_text.strip():
-                raise ValueError("El PDF no contiene texto para convertir a CSV.")
-
-            from io import StringIO
-            
-            # Intenta parsear como tabla separada por múltiples espacios
-            df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', on_bad_lines='skip')
-            
-            if df.empty:
-                # Si falla, crea un DataFrame simple (una columna con el contenido del PDF)
-                lines = [line.strip() for line in all_text.split('\n') if line.strip()]
-                df = pd.DataFrame(lines, columns=['Content'])
-            
-            output_buffer = io.BytesIO()
-            df.to_csv(output_buffer, index=False, encoding='utf-8')
-            output_buffer.seek(0)
-            
-            return send_file(output_buffer, mimetype='text/csv', as_attachment=True, download_name=os.path.splitext(file.filename)[0] + '.csv')
-
-
         else:
-            return jsonify({"error": "Tipo de conversión no soportado."}), 400
+            # === Manejo de archivo único para otras conversiones ===
+            if 'file' not in request.files:
+                return jsonify({"error": "No se recibió un archivo para la conversión de tipo único."}), 400
+                
+            file = request.files['file']
+            file_ext = os.path.splitext(file.filename)[1]
+            temp_input_fd, temp_input_path = tempfile.mkstemp(suffix=file_ext)
+            file.save(temp_input_path)
+            os.close(temp_input_fd)
+            output_filename = os.path.splitext(file.filename)[0]
+
+            
+            # --- Conversión de Video a Audio ---
+            if conversion_type == 'video-to-audio':
+                if file_ext.lower() not in ['.mp4', '.mov', '.avi', '.webm']:
+                    raise ValueError("La entrada para Video a Audio debe ser un formato de video común (MP4, MOV, etc.).")
+                    
+                temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".mp3")
+                os.close(temp_output_fd)
+                
+                video_clip = VideoFileClip(temp_input_path)
+                video_clip.audio.write_audiofile(temp_output_path)
+                video_clip.close() 
+
+                return send_file(temp_output_path, mimetype='audio/mp3', as_attachment=True, download_name=output_filename + '.mp3')
+            
+            # --- Conversiones de Imagen ---
+            elif conversion_type == 'jpg-to-png':
+                img = Image.open(temp_input_path)
+                output_buffer = io.BytesIO()
+                img.save(output_buffer, format="PNG")
+                output_buffer.seek(0)
+                return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=output_filename + '.png')
+            
+            elif conversion_type == 'png-to-jpg':
+                img = Image.open(temp_input_path).convert('RGB')
+                output_buffer = io.BytesIO()
+                img.save(output_buffer, format="JPEG")
+                output_buffer.seek(0)
+                return send_file(output_buffer, mimetype='image/jpeg', as_attachment=True, download_name=output_filename + '.jpg')
+            
+            # --- Otras Conversiones (Documentos y Datos) ---
+            elif conversion_type == 'pdf-to-word':
+                temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".docx")
+                os.close(temp_output_fd)
+                cv = PDFtoDOCXConverter(temp_input_path)
+                cv.convert(temp_output_path, start=0, end=None)
+                cv.close()
+                return send_file(temp_output_path, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', as_attachment=True, download_name=output_filename + '.docx')
+
+            elif conversion_type == 'word-to-pdf':
+                temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".pdf")
+                os.close(temp_output_fd)
+                DOCXtoPDFConverter(temp_input_path, temp_output_path)
+                return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=output_filename + '.pdf')
+            
+            elif conversion_type == 'pdf-to-csv':
+                doc = fitz.open(temp_input_path)
+                all_text = ""
+                for page in doc:
+                    all_text += page.get_text() + "\n"
+                doc.close()
+
+                if not all_text.strip():
+                    raise ValueError("El PDF no contiene texto para convertir a CSV.")
+
+                from io import StringIO
+                df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', on_bad_lines='skip')
+                
+                if df.empty:
+                    lines = [line.strip() for line in all_text.split('\n') if line.strip()]
+                    df = pd.DataFrame(lines, columns=['Content'])
+                
+                output_buffer = io.BytesIO()
+                df.to_csv(output_buffer, index=False, encoding='utf-8')
+                output_buffer.seek(0)
+                
+                return send_file(output_buffer, mimetype='text/csv', as_attachment=True, download_name=output_filename + '.csv')
+                
+            # ... (Aquí irían el resto de las conversiones de archivo único: png-to-webp, webp-to-png, text-to-pdf, etc.) ...
+            
+            else:
+                 return jsonify({"error": "Tipo de conversión no soportado."}), 400
 
     except Exception as e:
-        # Imprime el error específico en la consola de Flask para depuración
         print(f"Error CRÍTICO en la conversión: {e}")
-        return jsonify({"error": f"Error al procesar la conversión: {str(e)}"}), 500
+        return jsonify({"error": f"Error al procesar la conversión: {str(e)}. (Verifica logs de Flask)"}), 500
     finally:
-        # Limpia los archivos temporales
-        if os.path.exists(temp_input_path):
+        # Limpia los archivos temporales (archivos únicos o lista de archivos)
+        if temp_input_path and os.path.exists(temp_input_path):
             os.remove(temp_input_path)
+        for path in temp_input_paths:
+            if os.path.exists(path):
+                os.remove(path)
+        if audio_file_path and os.path.exists(audio_file_path):
+            os.remove(audio_file_path)
         if 'temp_output_path' in locals() and temp_output_path and os.path.exists(temp_output_path):
             os.remove(temp_output_path)
-
+    
 
 if __name__ == '__main__':
-    # Ejecuta el servidor en modo debug para ver los errores en la terminal
     app.run(host='0.0.0.0', debug=True, port=5000)

@@ -3,3 +3,9 @@ Flask-CORS==4.0.1
 Pillow==10.3.0
 pytesseract==0.3.10
 google-generativeai==0.6.0
+
+moviepy==1.0.3
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
+numpy==2.2.6
+pillow==11.3.0

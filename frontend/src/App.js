@@ -6,7 +6,7 @@ import Profile from './Profile';
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = 'https://dc17c353641d.ngrok-free.app'; 
+const NGROK_FLASK_URL = 'https://6b821c86f602.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
 // Referencia global para el objeto de audio que se está reproduciendo
@@ -25,17 +25,12 @@ const stopSpeaking = () => {
 
 // Función para llamar al backend de TTS y reproducir el audio Base64
 const speakTextFromBackend = async (textToSpeak, setLoadingState) => {
-    // Nota: Aquí NO llamamos a stopSpeaking(). La función de llamada (e.g., speakOcrText)
-    // es responsable de detener la reproducción ANTES de llamar a esta función, si es necesario.
-    
     if (!textToSpeak) {
         alert("No hay texto para leer.");
         setLoadingState(false);
         return;
     }
 
-    // El estado de carga ya debería estar en true aquí.
-    
     try {
         const data = { text: textToSpeak };
         
@@ -78,7 +73,6 @@ const speakTextFromBackend = async (textToSpeak, setLoadingState) => {
 
         // 3. Reproducir el audio
         await audio.play().catch(error => {
-             // Este catch es vital para atrapar el AbortError y otros errores de reproducción
             if (error.name !== "AbortError") {
                 console.error("Error al iniciar la reproducción:", error);
                 alert(`Error al iniciar la reproducción: ${error.message}`);
@@ -96,7 +90,7 @@ const speakTextFromBackend = async (textToSpeak, setLoadingState) => {
 };
 
 
-// Componente para la ventana modal de la IA
+// Componente para la ventana modal de la IA (Sin cambios)
 const AIModal = ({ ocrText, onClose }) => {
   const [pregunta, setPregunta] = useState('');
   const [respuestaAI, setRespuestaAI] = useState('La respuesta de la IA aparecerá aquí...');
@@ -104,7 +98,6 @@ const AIModal = ({ ocrText, onClose }) => {
   const [loadingTTS, setLoadingTTS] = useState(false);
   const [lastAIResponseText, setLastAIResponseText] = useState('');
   
-  // Detener la reproducción al desmontar el componente (al cerrar el modal)
   useEffect(() => {
     return () => {
       stopSpeaking();
@@ -112,9 +105,8 @@ const AIModal = ({ ocrText, onClose }) => {
   }, []);
 
   const askQuestion = async () => {
-    // Siempre detiene la voz ANTES de una nueva acción principal
     stopSpeaking(); 
-    setLoadingTTS(false); // Resetea el estado de lectura de la AI
+    setLoadingTTS(false); 
 
     if (!pregunta || !ocrText || ocrText === 'El texto extraído aparecerá aquí...' || ocrText === 'Procesando, por favor espera...') {
       setRespuestaAI("Por favor, extrae el texto de un documento primero.");
@@ -123,7 +115,7 @@ const AIModal = ({ ocrText, onClose }) => {
 
     setLoadingAI(true);
     setRespuestaAI("La IA está pensando, por favor espera...");
-    setLastAIResponseText(''); // Resetea el texto anterior
+    setLastAIResponseText(''); 
 
     const data = {
       pregunta: pregunta,
@@ -144,8 +136,8 @@ const AIModal = ({ ocrText, onClose }) => {
         return;
       }
       if (response.status === 404) {
-        setRespuestaAI(`Error 404: No se encontró el endpoint /ask. Verifica la URL de NGROK (${NGROK_FLASK_URL}).`);
-        return;
+         setRespuestaAI(`Error 404: No se encontró el endpoint /ask. Verifica la URL de NGROK (${NGROK_FLASK_URL}).`);
+         return;
       }
       if (!response.ok) {
         throw new Error(`Error HTTP! status: ${response.status}`);
@@ -154,7 +146,7 @@ const AIModal = ({ ocrText, onClose }) => {
       const result = await response.json();
       if (result.success) {
         setRespuestaAI(result.respuesta);
-        setLastAIResponseText(result.respuesta); // Guarda el texto para TTS
+        setLastAIResponseText(result.respuesta); 
       } else {
         setRespuestaAI(`Error: ${result.error}`);
       }
@@ -165,14 +157,12 @@ const AIModal = ({ ocrText, onClose }) => {
     }
   };
   
-  // Función específica para la respuesta de la IA (llama a la función genérica)
   const speakResponse = async () => {
     if (loadingTTS) {
-        stopSpeaking(); // Detiene si ya está leyendo
+        stopSpeaking(); 
         setLoadingTTS(false);
         return;
     }
-    // Llama a la función genérica, que manejará la reproducción
     setLoadingTTS(true);
     await speakTextFromBackend(lastAIResponseText, setLoadingTTS);
   };
@@ -214,28 +204,25 @@ const AIModal = ({ ocrText, onClose }) => {
   );
 };
 
-// Componente de la página de OCR (Modificado)
+// Componente de la página de OCR (Sin cambios)
 const OCRPage = () => {
   const [file, setFile] = useState(null);
   const [ocrText, setOcrText] = useState('El texto extraído aparecerá aquí...');
   const [loading, setLoading] = useState(false);
-  const [loadingOcrTTS, setLoadingOcrTTS] = useState(false); // Nuevo estado de carga TTS para OCR
+  const [loadingOcrTTS, setLoadingOcrTTS] = useState(false); 
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false); 
   
-  // Función específica para el texto de OCR (llama a la función genérica)
   const speakOcrText = async () => {
     if (loadingOcrTTS) {
-        stopSpeaking(); // Detiene si ya está leyendo
+        stopSpeaking(); 
         setLoadingOcrTTS(false);
         return;
     }
-    // Llama a la función genérica, que manejará la reproducción
     setLoadingOcrTTS(true);
     await speakTextFromBackend(ocrText, setLoadingOcrTTS);
   };
   
-  // Detener la reproducción al iniciar el OCR
   useEffect(() => {
     if (loading) {
       stopSpeaking();
@@ -248,9 +235,8 @@ const OCRPage = () => {
   };
 
   const uploadAndProcess = async () => {
-    // Siempre detiene la voz ANTES de una nueva acción principal
     stopSpeaking(); 
-    setLoadingOcrTTS(false); // Resetea el estado de lectura del OCR
+    setLoadingOcrTTS(false); 
     
     if (!file) {
       setOcrText("Por favor, selecciona un archivo.");
@@ -270,8 +256,8 @@ const OCRPage = () => {
       });
 
       if (response.status === 404) {
-        setOcrText(`Error 404: No se encontró el endpoint /ocr. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
-        return;
+         setOcrText(`Error 404: No se encontró el endpoint /ocr. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
+         return;
       }
 
       if (!response.ok) {
@@ -315,7 +301,6 @@ const OCRPage = () => {
           )}
         </div>
         
-        {/* BOTÓN DE TTS PARA EL EXTRACTOR DE TEXTO (NUEVO) */}
         {isOcrTextReady && (
           <button 
             onClick={speakOcrText} 
@@ -326,7 +311,6 @@ const OCRPage = () => {
           </button>
         )}
         
-        {/* Botón para abrir el modal */}
         <button 
           onClick={() => setShowModal(true)} 
           disabled={!isOcrTextReady}
@@ -336,24 +320,33 @@ const OCRPage = () => {
         </button>
 
       </header>
-      {/* Muestra el modal si showModal es verdadero */}
       {showModal && <AIModal ocrText={ocrText} onClose={() => setShowModal(false)} />}
     </div>
   );
 };
 
-// Componente de la nueva página del conversor de archivos
+// Componente de la nueva página del conversor de archivos (ACTUALIZADO PARA MÚLTIPLES ARCHIVOS)
 const FileConverterPage = () => {
-  // ... (El código de FileConverterPage se mantiene sin cambios) ...
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]); // Ahora es una lista de archivos
+  const [audioFile, setAudioFile] = useState(null); 
   const [conversionType, setConversionType] = useState('jpg-to-png');
   const [status, setStatus] = useState('Selecciona un archivo y un tipo de conversión.');
   const [loading, setLoading] = useState(false);
   const [convertedFileUrl, setConvertedFileUrl] = useState(null);
 
   const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+    // Si es img-to-video, tomamos múltiples archivos
+    if (conversionType === 'img-to-video') {
+        setFiles(Array.from(e.target.files));
+    } else {
+        // Para todas las demás, solo tomamos el primer archivo
+        setFiles(e.target.files.length > 0 ? [e.target.files[0]] : []);
+    }
     setConvertedFileUrl(null);
+  };
+  
+  const handleAudioFileChange = (e) => {
+    setAudioFile(e.target.files.length > 0 ? e.target.files[0] : null);
   };
 
   const getFileExtension = (conversionType) => {
@@ -371,15 +364,31 @@ const FileConverterPage = () => {
           return '.webp';
         case 'pdf-to-csv':
           return '.csv';
+        case 'img-to-video': 
+          return '.mp4';
+        case 'video-to-audio': 
+          return '.mp3';
         default:
           return '.bin';
     }
   };
 
+  const isImgToVideo = conversionType === 'img-to-video';
+
   const handleConversion = async () => {
-    if (!file) {
-      setStatus("Por favor, selecciona un archivo.");
+    if (files.length === 0) {
+      setStatus("Por favor, selecciona uno o más archivos.");
       return;
+    }
+    
+    if (isImgToVideo && files.length === 0) {
+        setStatus("Para 'Imagen a Video', debes seleccionar al menos una imagen.");
+        return;
+    }
+    
+    if (!isImgToVideo && files.length > 1) {
+        // En conversiones de archivo único, solo usamos el primero y advertimos.
+        setStatus("Advertencia: Solo se procesará el primer archivo seleccionado. Usa 'Imagen a Video' para múltiples entradas.");
     }
 
     setLoading(true);
@@ -387,8 +396,22 @@ const FileConverterPage = () => {
     setConvertedFileUrl(null);
 
     const formData = new FormData();
-    formData.append('file', file);
     formData.append('type', conversionType);
+    
+    // Adjuntar archivos: Clave diferente para archivo único vs. múltiples
+    if (isImgToVideo) {
+        files.forEach(file => {
+             // Clave 'files[]' para subir múltiples archivos
+            formData.append('files[]', file);
+        });
+        if (audioFile) {
+            formData.append('audio_file', audioFile); 
+        }
+    } else {
+        // Clave 'file' para todas las demás conversiones (archivo único)
+        formData.append('file', files[0]); 
+    }
+    
 
     try {
       const response = await fetch(`${NGROK_FLASK_URL}/convert`, {
@@ -397,26 +420,29 @@ const FileConverterPage = () => {
       });
 
       if (response.status === 404) {
-        setStatus(`Error 404: No se encontró el endpoint /convert. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
-        return;
+         setStatus(`Error 404: No se encontró el endpoint /convert. Verifica la URL.`);
+         return;
       }
 
       if (!response.ok) {
-        throw new Error(`Error HTTP! status: ${response.status}`);
+        let errorText = await response.text();
+        try {
+            const errorJson = JSON.parse(errorText);
+            errorText = errorJson.error || `Error HTTP! status: ${response.status}`;
+        } catch (e) {
+            errorText = `Error HTTP! status: ${response.status}`;
+        }
+        throw new Error(errorText);
       }
       
       const blob = await response.blob();
       
-      // Obtener la extensión del archivo de salida
-      const ext = getFileExtension(conversionType); 
-
-      // Crea un enlace de descarga
       const url = URL.createObjectURL(blob);
       setConvertedFileUrl(url);
       setStatus("¡Conversión exitosa! Haz clic en el enlace para descargar.");
       
     } catch (error) {
-      setStatus(`Error en la conversión: ${error}. Asegúrate de que el servidor de Flask tenga un endpoint '/convert' y que las bibliotecas estén instaladas.`);
+      setStatus(`Error en la conversión: ${error.message}.`);
     } finally {
       setLoading(false);
     }
@@ -426,14 +452,12 @@ const FileConverterPage = () => {
     <div className="container main-content">
       <header className="App-header">
         <h1>Convertidor de Archivos</h1>
-        <p>Convierte tus documentos e imágenes a diferentes formatos.</p>
-        <div className="form-group">
-          <input type="file" onChange={handleFileChange} />
-        </div>
+        <p>Convierte tus documentos, imágenes y videos.</p>
+        
+        {/* SELECTOR DE TIPO DE CONVERSIÓN */}
         <div className="form-group">
           <label>Convertir a:</label>
-          {/* Opciones de conversión ACTUALIZADAS */}
-          <select onChange={(e) => setConversionType(e.target.value)} value={conversionType}>
+          <select onChange={(e) => { setConversionType(e.target.value); setAudioFile(null); setFiles([]); }} value={conversionType}>
             <option value="jpg-to-png">JPG a PNG</option>
             <option value="png-to-jpg">PNG a JPG</option>
             <option value="png-to-webp">PNG a WEBP</option>
@@ -441,8 +465,33 @@ const FileConverterPage = () => {
             <option value="pdf-to-word">PDF a DOCX (Word)</option>
             <option value="word-to-pdf">DOCX (Word) a PDF</option>
             <option value="pdf-to-csv">PDF a CSV (Extracción de Tablas)</option>
+            <option value="img-to-video">Imágenes (Slideshow) a Video (MP4)</option>
+            <option value="video-to-audio">Video (MP4/MOV) a Audio (MP3)</option>
           </select>
         </div>
+        
+        {/* INPUT DE ARCHIVO(S) PRINCIPAL(ES) */}
+        <div className="form-group">
+          <label>Archivo(s) principal(es):</label>
+          {/* El atributo MULTIPLE solo se agrega si es img-to-video */}
+          <input 
+            type="file" 
+            onChange={handleFileChange} 
+            multiple={isImgToVideo}
+            accept={isImgToVideo ? 'image/*' : '*/*'}
+          />
+          {files.length > 0 && <p className="note">Archivos seleccionados: {files.length}</p>}
+        </div>
+        
+        {/* INPUT DE AUDIO OPCIONAL (SOLO PARA IMG-TO-VIDEO) */}
+        {isImgToVideo && (
+            <div className="form-group optional-file">
+                <label>Audio opcional (MP3, WAV):</label>
+                <input type="file" onChange={handleAudioFileChange} accept="audio/*" />
+                <p className="note">Cada imagen dura 2 segundos. Si subes audio, el video se ajusta a su duración.</p>
+            </div>
+        )}
+        
         <button onClick={handleConversion} disabled={loading}>
           {loading ? 'Convirtiendo...' : 'Convertir'}
         </button>
@@ -463,7 +512,6 @@ const FileConverterPage = () => {
   );
 };
 
-// ... Resto de los componentes (AboutPage, FeaturesPage, App) ...
 
 const AboutPage = () => (
   <div className="container about-me">
@@ -476,7 +524,7 @@ const FeaturesPage = () => (
     <h2>Próximos Agregados</h2>
     <div className="collapsible-content">
       <ul>
-        <li>Convertidor de archivos (JPG, PNG, PDF, Word) - **¡Agregado y en funcionamiento!**</li>
+        <li>Convertidor de archivos (Slideshow de Fotos a Video) - **¡Agregado y en funcionamiento!**</li>
         <li>Soporte para más idiomas (francés, alemán, etc.)</li>
       </ul>
     </div>
