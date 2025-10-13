@@ -6,7 +6,7 @@ import Profile from './Profile';
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = 'https://f9fa763b4ef3.ngrok-free.app'; 
+const NGROK_FLASK_URL = 'https://e10455e614cf.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
 // Referencia global para el objeto de audio que se está reproduciendo
@@ -90,7 +90,7 @@ const speakTextFromBackend = async (textToSpeak, setLoadingState) => {
 };
 
 
-// Componente para la ventana modal de la IA (Sin cambios)
+// Componente para la ventana modal de la IA 
 const AIModal = ({ ocrText, onClose }) => {
   const [pregunta, setPregunta] = useState('');
   const [respuestaAI, setRespuestaAI] = useState('La respuesta de la IA aparecerá aquí...');
@@ -204,7 +204,7 @@ const AIModal = ({ ocrText, onClose }) => {
   );
 };
 
-// Componente de la página de OCR (Sin cambios)
+// Componente de la página de OCR 
 const OCRPage = () => {
   const [file, setFile] = useState(null);
   const [ocrText, setOcrText] = useState('El texto extraído aparecerá aquí...');
@@ -285,7 +285,7 @@ const OCRPage = () => {
     <div className="container main-content">
       <header className="App-header">
         <h1>OCR - Lector de Documentos</h1>
-        <p>Sube un documento para extraer el texto.</p>
+        <p>Sube un documento o imagen para extraer el texto.</p>
         <div className="form-group">
           <input type="file" onChange={handleFileChange} accept="image/*, .pdf" />
         </div>
