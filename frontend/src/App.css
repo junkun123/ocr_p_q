@@ -1,14 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
           
-/* Estilos Globales y Layout - DARK THEME */
+/* Estilos Globales y Layout - DARK THEME (Similar a Gemini) */
 .App {
   font-family: 'Inter', sans-serif;
   text-align: center;
   background-color: #1a1a2e; /* Fondo principal muy oscuro (Azul/Púrpura Profundo) */
   color: #e0e0e0; /* Texto claro */
   min-height: 100vh;
+  display: flex; /* Para el layout con Sidebar */
 }
 
+/* Contenedor principal que se mueve con la sidebar */
+.content-wrapper {
+    flex-grow: 1;
+    min-height: 100vh;
+    padding-top: 50px; /* Espacio para el header fijo */
+    transition: margin-left 0.3s ease;
+    /* Ajuste para que el scroll esté en el wrapper */
+    overflow-y: auto; 
+}
+
+/* OTRAS PAGINAS (No chat) */
 .container {
   max-width: 900px;
   margin: 2rem auto;
@@ -16,89 +28,382 @@
   background-color: #2c2c44; /* Fondo del contenedor (Gris oscuro) */
   border-radius: 12px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  text-align: left; /* Alineación para páginas no-chat */
 }
 
 .main-content {
   padding-bottom: 4rem;
 }
 
-/* Navbar */
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #0f1325; /* Azul muy oscuro para la barra */
-  padding: 1rem 2rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+/* --- HEADER SUPERIOR FIJO --- */
+.main-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background-color: #1a1a2e; /* Color oscuro que coincide con el fondo */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    z-index: 900;
 }
 
-.nav-brand {
-  color: #4caf50; /* Verde brillante para el logo */
-  font-size: 1.5rem;
-  font-weight: 700;
+.menu-toggle-btn {
+    background: none;
+    border: none;
+    color: #b3e5fc; /* Azul claro */
+    font-size: 1.5rem;
+    cursor: pointer;
+    margin-right: 1rem;
+    padding: 0.25rem 0.5rem;
+}
+.menu-toggle-btn:hover {
+    background-color: #383857;
 }
 
-.nav-links {
-  display: flex;
-  gap: 1.5rem;
+.header-title {
+    flex-grow: 1;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #4caf50; /* Verde vibrante */
+    text-align: left;
 }
 
-.nav-links a {
-  color: #b3e5fc; /* Azul claro para los enlaces */
-  text-decoration: none;
-  font-weight: 600;
-  padding: 0.5rem 0;
-  transition: color 0.3s;
+.header-user-icon {
+    font-size: 1.5rem;
+    padding: 0.25rem;
+    cursor: pointer;
+    background-color: #383857;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-.nav-links a:hover {
-  color: #fff; /* Blanco al pasar el ratón */
+
+/* --- SIDEBAR (Menú lateral tipo Gemini) --- */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px; /* Inicialmente fuera de la vista */
+    width: 280px;
+    height: 100%;
+    background-color: #1f1f3a; /* Fondo de la sidebar (Azul/Púrpura) */
+    color: #e0e0e0;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    transition: left 0.3s ease;
+    display: flex;
+    flex-direction: column;
 }
 
-.menu-toggle {
-  display: none;
-  background: none;
-  border: none;
-  color: #b3e5fc;
-  font-size: 1.5rem;
-  cursor: pointer;
+.sidebar.open {
+    left: 0;
 }
 
-/* Estilos para cabeceras y párrafos */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s;
+}
+
+.sidebar-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #383857;
+}
+
+.sidebar-brand {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #4caf50;
+}
+
+.sidebar-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #b3e5fc;
+    cursor: pointer;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    flex-grow: 1;
+}
+
+.sidebar-nav a {
+    color: #e0e0e0;
+    text-decoration: none;
+    padding: 0.75rem 1rem;
+    margin: 0.25rem 0;
+    border-radius: 8px;
+    transition: background-color 0.2s, color 0.2s;
+    text-align: left;
+    font-weight: 500;
+}
+
+.sidebar-nav a:hover {
+    background-color: #383857;
+}
+
+.sidebar-nav a.active {
+    background-color: #4caf50; /* Color de acento para la ruta activa */
+    color: #1a1a2e;
+    font-weight: 700;
+}
+
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid #383857;
+    font-size: 0.8rem;
+    color: #999;
+}
+
+
+/* --- OCR CHAT INTERFACE --- */
+.ocr-chat-container {
+    max-width: 800px;
+    margin: 1rem auto;
+    height: calc(100vh - 70px); /* 100% de la ventana menos el header y algo de margen */
+    display: flex;
+    flex-direction: column;
+    background-color: #2c2c44; 
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+}
+
+.chat-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #383857;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #1f1f3a;
+}
+
+.chat-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #b3e5fc;
+}
+
+.file-upload-group {
+    display: flex;
+    gap: 10px;
+}
+
+.custom-file-upload {
+    background-color: #444466; /* Gris/Púrpura suave */
+    color: #e0e0e0;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+.custom-file-upload:hover {
+    background-color: #555577;
+}
+
+.process-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+
+.chat-history-box {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: left;
+}
+
+.chat-placeholder {
+    margin: auto;
+    text-align: center;
+    color: #b3b3b3;
+}
+
+.chat-message {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+
+.message-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    line-height: 1;
+    padding-top: 5px;
+}
+
+.chat-message.user .message-icon {
+    color: #b3e5fc;
+}
+.chat-message.ai .message-icon {
+    color: #4caf50;
+}
+.chat-message.error .message-icon {
+    color: #f44336;
+}
+
+.message-content {
+    background-color: #383857; /* Fondo de burbuja */
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    max-width: 90%;
+}
+
+.chat-message.user .message-content {
+    background-color: #1e88e5; /* Azul para el usuario */
+    color: white;
+}
+.chat-message.ai .message-content {
+    background-color: #383857; /* Púrpura oscuro para la IA */
+}
+
+.message-content pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    font-size: 1rem;
+}
+
+/* Botones dentro del mensaje de la IA */
+.chat-tts-button, .chat-view-ocr-button {
+    background: none;
+    border: none;
+    padding: 5px;
+    margin-top: 10px;
+    margin-right: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+    color: #b3e5fc;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.chat-tts-button:hover, .chat-view-ocr-button:hover {
+    background-color: rgba(179, 229, 252, 0.1);
+    transform: none;
+    box-shadow: none;
+}
+
+.chat-tts-button.tts-speaking {
+    color: #f44336;
+}
+
+.chat-view-ocr-button {
+    font-size: 0.8rem;
+    border: 1px solid #b3e5fc;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #b3e5fc;
+    font-weight: 500;
+}
+
+
+.chat-input-area {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #383857;
+    background-color: #1f1f3a;
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input-area textarea {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border: 1px solid #444466;
+    border-radius: 20px; /* Bordes redondeados de chat */
+    background-color: #383857;
+    color: #e0e0e0;
+    resize: none;
+    overflow-y: hidden; /* Ocultar barra de scroll si es posible */
+}
+
+.chat-input-area button {
+    flex-shrink: 0;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    padding: 0;
+    font-size: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- ESTILOS GENERALES Y MEDIA QUERIES (se mantienen/actualizan) --- */
+
+/* Estilos para cabeceras y párrafos (en otras páginas) */
 .App-header h1 {
-  color: #4caf50; /* Verde vibrante */
+  color: #4caf50; 
   margin-bottom: 0.5rem;
 }
 
 .App-header p {
-  color: #b3b3b3; /* Gris claro para subtítulos */
+  color: #b3b3b3; 
   margin-bottom: 1.5rem;
 }
 
 /* Formularios y Archivos */
 .form-group {
   margin-bottom: 1.5rem;
+  text-align: left;
 }
 
 input[type="file"], select, .ai-input {
   padding: 0.75rem;
-  border: 1px solid #444466; /* Borde oscuro */
+  border: 1px solid #444466; 
   border-radius: 8px;
-  background-color: #383857; /* Fondo de inputs oscuro */
+  background-color: #383857; 
   color: #e0e0e0;
   width: 100%;
   max-width: 400px;
   display: inline-block;
+  box-sizing: border-box;
 }
 
 select {
   margin-left: 0.5rem;
+  max-width: 300px;
 }
 
-/* Botones Generales (Verde - Acción Principal) */
+/* Botones Generales */
 button {
-  background-color: #4caf50; /* Verde brillante */
-  color: #1a1a2e; /* Texto oscuro en el botón */
+  background-color: #4caf50; 
+  color: #1a1a2e; 
   padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 8px;
@@ -109,80 +414,26 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background-color: #66bb6a; /* Verde más claro al pasar el ratón */
+  background-color: #66bb6a; 
   transform: translateY(-2px);
   box-shadow: 0 6px 10px rgba(76, 175, 80, 0.5);
 }
 
 button:disabled {
-  background-color: #388e3c; /* Verde más opaco */
+  background-color: #388e3c; 
   color: #ccc;
   cursor: not-allowed;
   box-shadow: none;
 }
 
-/* Caja de Texto Extraído (Output) */
-.output-box {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background-color: #383857; /* Fondo de caja de salida (Ligeramente más claro que el contenedor) */
-  border-radius: 8px;
-  text-align: left;
-  position: relative;
-  min-height: 100px;
-  border: 1px solid #444466;
-}
-
-.output-box pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-size: 0.95rem;
-  color: #e0e0e0; /* Texto claro */
-}
-
-.expand-button {
-  background: none;
-  color: #b3e5fc; /* Azul claro para el enlace de expansión */
-  padding: 0;
-  margin-top: 0.5rem;
-  display: block;
-  text-decoration: underline;
-  font-size: 0.9rem;
-  box-shadow: none;
-  font-weight: 400;
-}
-
-.expand-button:hover {
-  color: #fff;
-  transform: none;
-}
-
-/* Conversor de Archivos (Status Box) */
-.status-box {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  background-color: #443322; /* Tono cálido oscuro para el estado */
-  border: 1px solid #ffcc80;
-  border-radius: 8px;
-  color: #ffb74d; /* Naranja/Amarillo claro para el texto */
-}
-
-.download-link {
-  display: block;
-  margin-top: 1rem;
-  color: #b3e5fc; /* Azul claro */
-  text-decoration: underline;
-  font-weight: 600;
-}
-
-/* --- Modal IA Styles --- */
+/* --- Modal IA Styles (Se mantienen) --- */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85); /* Overlay más oscuro */
+  background: rgba(0, 0, 0, 0.85); 
   display: flex;
   justify-content: center;
   align-items: center;
@@ -223,28 +474,26 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
-/* Botón 'Preguntar' de la IA (Azul/Petróleo - Accento Secundario) */
 .form-group-ai button {
   flex-shrink: 0;
   align-self: flex-start;
-  background-color: #1e88e5; /* Azul primario */
+  background-color: #1e88e5; 
   color: #fff;
   box-shadow: 0 4px 6px rgba(30, 136, 229, 0.4);
 }
 
 .form-group-ai button:hover:not(:disabled) {
-  background-color: #42a5f5; /* Azul más claro al pasar el ratón */
+  background-color: #42a5f5; 
 }
 
-/* Caja de Respuesta de la IA */
 .output-box-ai {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #383857; /* Mismo fondo que la caja de OCR */
+  background-color: #383857; 
   border-radius: 8px;
   text-align: left;
   min-height: 80px;
-  border: 1px solid #b3e5fc; /* Borde de color de acento */
+  border: 1px solid #b3e5fc; 
   margin-bottom: 1rem;
 }
 
@@ -255,15 +504,14 @@ button:disabled {
   margin: 0;
 }
 
-/* Botón TTS (Escuchar / Detener) */
 .tts-button {
-  background-color: #4caf50; /* Verde para Escuchar */
+  background-color: #4caf50; 
   box-shadow: 0 4px 6px rgba(76, 175, 80, 0.4);
   margin-top: 0.5rem;
 }
 
 .tts-button.tts-speaking {
-  background-color: #f44336; /* Rojo para detener */
+  background-color: #f44336; 
   box-shadow: 0 4px 6px rgba(244, 67, 54, 0.4);
 }
 
@@ -271,31 +519,67 @@ button:disabled {
   background-color: #e57373;
 }
 
-/* Responsive Navbar (Móvil) */
-@media (max-width: 768px) {
-  .nav-links {
-    display: none;
-    flex-direction: column;
-    position: absolute;
-    top: 60px; /* Ajuste para la altura de la navbar */
-    left: 0;
-    width: 100%;
-    background-color: #0f1325;
-    padding: 1rem 0;
-    z-index: 10;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
-  }
-  .nav-links.open {
+
+/* --- NUEVOS ESTILOS PARA EL MODAL DE TEXTO COMPLETO --- */
+
+/* Ajuste del tamaño del modal de texto para que sea más grande */
+.modal-content.text-view-modal {
+    max-width: 800px; 
+    height: 80vh;
     display: flex;
-  }
-  .nav-links a {
-    padding: 0.75rem 2rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  .menu-toggle {
-    display: block;
-  }
-  .navbar {
-    padding: 0.75rem 1rem;
-  }
+    flex-direction: column;
+    padding: 1.5rem;
+}
+.modal-content.text-view-modal .section-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Estilo para la caja de texto completo de OCR dentro del modal */
+.output-box-ocr-full {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #383857; /* Fondo oscuro */
+  border-radius: 8px;
+  text-align: left;
+  min-height: 150px;
+  max-height: 60vh; /* Límite de altura visual */
+  overflow-y: auto; /* Scroll si es necesario */
+  border: 1px solid #4caf50; /* Borde verde para distinguirlo del modal de IA */
+  margin-bottom: 1rem;
+  flex-grow: 1;
+}
+
+.output-box-ocr-full pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #e0e0e0; 
+  margin: 0;
+}
+
+
+/* Responsive (Móvil) */
+@media (max-width: 768px) {
+    .ocr-chat-container {
+        margin: 0;
+        border-radius: 0;
+        height: calc(100vh - 50px);
+    }
+    .container {
+        margin: 1rem;
+        padding: 1rem;
+    }
+    .sidebar {
+        width: 250px;
+    }
+    .chat-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    .modal-content {
+        padding: 1rem;
+        width: 95%;
+    }
 }

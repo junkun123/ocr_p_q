@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import './App.css'; 
 import Profile from './Profile'; 
 
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = 'https://e10455e614cf.ngrok-free.app'; 
+const NGROK_FLASK_URL = 'https://090ad60cb171.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
 // Referencia global para el objeto de audio que se está reproduciendo
@@ -90,35 +90,157 @@ const speakTextFromBackend = async (textToSpeak, setLoadingState) => {
 };
 
 
-// Componente para la ventana modal de la IA 
-const AIModal = ({ ocrText, onClose }) => {
-  const [pregunta, setPregunta] = useState('');
-  const [respuestaAI, setRespuestaAI] = useState('La respuesta de la IA aparecerá aquí...');
-  const [loadingAI, setLoadingAI] = useState(false);
-  const [loadingTTS, setLoadingTTS] = useState(false);
-  const [lastAIResponseText, setLastAIResponseText] = useState('');
+// Nuevo Componente para SOLO mostrar el texto OCR completo
+const OCRTextModal = ({ ocrText, onClose }) => {
+    // Estado para controlar la lectura de voz del texto OCR
+    const [loadingTTS, setLoadingTTS] = useState(false);
+
+    useEffect(() => {
+        return () => {
+            stopSpeaking();
+        };
+    }, []);
+
+    const speakText = async () => {
+        if (loadingTTS) {
+            stopSpeaking(); 
+            setLoadingTTS(false);
+            return;
+        }
+        setLoadingTTS(true);
+        await speakTextFromBackend(ocrText, setLoadingTTS);
+    };
+
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content text-view-modal"> 
+                <button className="modal-close-button" onClick={onClose}>&times;</button>
+                <div className="section-container">
+                    <h2>Texto Completo Extraído (OCR)</h2>
+                    <div className="output-box-ocr-full">
+                        <pre>{ocrText}</pre>
+                    </div>
+                    <button 
+                        onClick={speakText} 
+                        className={`tts-button ${loadingTTS ? 'tts-speaking' : ''}`}
+                    >
+                        {loadingTTS ? '🛑 Detener Lectura' : '🔊 Escuchar Texto Completo'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+// Componente de la página de OCR (Refactorizado para ser el "Chat")
+const OCRPage = () => {
+  const [file, setFile] = useState(null);
+  // Combinamos ocrText, pregunta y respuesta en un historial de "chat"
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingOcrTTS, setLoadingOcrTTS] = useState(false); 
+  // const [showModal, setShowModal] = useState(false); // Eliminado, ya no es necesario
+  const [showFullOcrModal, setShowFullOcrModal] = useState(false); // NUEVO ESTADO
+  const [ocrText, setOcrText] = useState('');
+  const [preguntaChat, setPreguntaChat] = useState('');
   
+  // Efecto para limpiar la voz al salir
   useEffect(() => {
     return () => {
       stopSpeaking();
     };
   }, []);
 
-  const askQuestion = async () => {
-    stopSpeaking(); 
-    setLoadingTTS(false); 
+  const speakText = async (text) => {
+    if (loadingOcrTTS) {
+        stopSpeaking(); 
+        setLoadingOcrTTS(false);
+        return;
+    }
+    setLoadingOcrTTS(true);
+    await speakTextFromBackend(text, setLoadingOcrTTS);
+  };
 
-    if (!pregunta || !ocrText || ocrText === 'El texto extraído aparecerá aquí...' || ocrText === 'Procesando, por favor espera...') {
-      setRespuestaAI("Por favor, extrae el texto de un documento primero.");
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+    // Limpiamos el historial al subir nuevo archivo
+    setHistory([]); 
+    setOcrText(''); 
+  };
+
+  const uploadAndProcess = async () => {
+    stopSpeaking(); 
+    setLoadingOcrTTS(false); 
+    
+    if (!file) {
+      alert("Por favor, selecciona un archivo.");
+      return;
+    }
+    setLoading(true);
+    setHistory([{ sender: 'system', text: `Subiendo y procesando ${file.name}...` }]);
+    setOcrText('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${NGROK_FLASK_URL}/ocr`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.status === 404) {
+        setHistory(prev => [...prev, { sender: 'error', text: `Error 404: No se encontró el endpoint /ocr. Por favor, verifica la URL de NGROK.` }]);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      if (result.success) {
+        setOcrText(result.text); // Guardamos el texto completo para el contexto de la IA
+        setHistory([{ 
+            sender: 'ai', 
+            text: `Documento "${file.name}" procesado. El texto extraído está listo. Ahora puedes hacer preguntas sobre él en el cuadro de abajo.`,
+            fullText: result.text // Opcional: para que se muestre el botón de "Ver Texto Completo"
+        }]);
+      } else {
+        setHistory(prev => [...prev, { sender: 'error', text: `Error: ${result.error}` }]);
+      }
+    } catch (error) {
+      setHistory(prev => [...prev, { sender: 'error', text: `Error de conexión: ${error.message}. Asegúrate de que el servidor de Flask esté corriendo.` }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const askAIChat = async (e) => {
+    e.preventDefault();
+    stopSpeaking(); 
+    setLoadingOcrTTS(false); 
+
+    const currentQuestion = preguntaChat.trim();
+    if (!currentQuestion) return;
+
+    if (!ocrText) {
+      setHistory(prev => [...prev, { sender: 'error', text: "Por favor, extrae el texto de un documento primero." }]);
+      setPreguntaChat('');
       return;
     }
 
-    setLoadingAI(true);
-    setRespuestaAI("La IA está pensando, por favor espera...");
-    setLastAIResponseText(''); 
+    // 1. Añadir la pregunta del usuario
+    setHistory(prev => [...prev, { sender: 'user', text: currentQuestion }]);
+    setPreguntaChat(''); // Limpiar input
+    setLoading(true);
+
+    // 2. Mostrar mensaje de "pensando"
+    const thinkingMessage = { sender: 'ai', text: 'La IA está pensando, por favor espera...', isThinking: true };
+    setHistory(prev => [...prev, thinkingMessage]);
 
     const data = {
-      pregunta: pregunta,
+      pregunta: currentQuestion,
       texto_extraido: ocrText
     };
 
@@ -131,199 +253,111 @@ const AIModal = ({ ocrText, onClose }) => {
         body: JSON.stringify(data),
       });
 
-      if (response.status === 500) {
-        setRespuestaAI("Error 500: El servidor ha encontrado un error interno. Revisa los logs de tu servidor de Flask.");
-        return;
-      }
-      if (response.status === 404) {
-         setRespuestaAI(`Error 404: No se encontró el endpoint /ask. Verifica la URL de NGROK (${NGROK_FLASK_URL}).`);
-         return;
-      }
-      if (!response.ok) {
-        throw new Error(`Error HTTP! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (result.success) {
-        setRespuestaAI(result.respuesta);
-        setLastAIResponseText(result.respuesta); 
+      let responseText = `Error al conectar con el backend. Revisa logs.`;
+      if (response.ok) {
+        const result = await response.json();
+        responseText = result.success ? result.respuesta : `Error de IA: ${result.error}`;
+      } else if (response.status === 404) {
+        responseText = `Error 404: No se encontró el endpoint /ask. Verifica la URL de NGROK.`;
       } else {
-        setRespuestaAI(`Error: ${result.error}`);
+        responseText = `Error HTTP (${response.status}): Fallo en la llamada a la IA.`;
       }
-    } catch (error) {
-      setRespuestaAI(`Error de conexión con la IA: ${error}.`);
-    } finally {
-      setLoadingAI(false);
-    }
-  };
-  
-  const speakResponse = async () => {
-    if (loadingTTS) {
-        stopSpeaking(); 
-        setLoadingTTS(false);
-        return;
-    }
-    setLoadingTTS(true);
-    await speakTextFromBackend(lastAIResponseText, setLoadingTTS);
-  };
 
-  const isResponseReady = lastAIResponseText.length > 0;
-
-  return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <button className="modal-close-button" onClick={onClose}>&times;</button>
-        <div className="section-container">
-          <h2>Pregúntale a la IA</h2>
-          <p>Haz preguntas relacionadas con el texto extraído.</p>
-          <div className="form-group-ai">
-            <textarea
-              className="ai-input"
-              rows="3"
-              value={pregunta}
-              onChange={(e) => setPregunta(e.target.value)}
-              placeholder="Escribe tu pregunta aquí..."
-            />
-            <button onClick={askQuestion} disabled={loadingAI}>
-              {loadingAI ? 'Pensando...' : 'Preguntar'}
-            </button>
-          </div>
-          <div className="output-box-ai">
-            <pre>{respuestaAI}</pre>
-          </div>
-          <button 
-            onClick={speakResponse} 
-            disabled={!isResponseReady}
-            className={`tts-button ${loadingTTS ? 'tts-speaking' : ''}`}
-          >
-            {loadingTTS ? '🛑 Detener Lectura' : '🔊 Escuchar Respuesta'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Componente de la página de OCR 
-const OCRPage = () => {
-  const [file, setFile] = useState(null);
-  const [ocrText, setOcrText] = useState('El texto extraído aparecerá aquí...');
-  const [loading, setLoading] = useState(false);
-  const [loadingOcrTTS, setLoadingOcrTTS] = useState(false); 
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showModal, setShowModal] = useState(false); 
-  
-  const speakOcrText = async () => {
-    if (loadingOcrTTS) {
-        stopSpeaking(); 
-        setLoadingOcrTTS(false);
-        return;
-    }
-    setLoadingOcrTTS(true);
-    await speakTextFromBackend(ocrText, setLoadingOcrTTS);
-  };
-  
-  useEffect(() => {
-    if (loading) {
-      stopSpeaking();
-      setLoadingOcrTTS(false);
-    }
-  }, [loading]);
-
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
-
-  const uploadAndProcess = async () => {
-    stopSpeaking(); 
-    setLoadingOcrTTS(false); 
-    
-    if (!file) {
-      setOcrText("Por favor, selecciona un archivo.");
-      return;
-    }
-    setLoading(true);
-    setOcrText("Procesando, por favor espera...");
-    setIsExpanded(false);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch(`${NGROK_FLASK_URL}/ocr`, {
-        method: 'POST',
-        body: formData,
+      // 3. Reemplazar el mensaje de "pensando" con la respuesta real
+      setHistory(prev => {
+        const newHistory = prev.filter(msg => !msg.isThinking);
+        newHistory.push({ sender: 'ai', text: responseText });
+        return newHistory;
       });
 
-      if (response.status === 404) {
-         setOcrText(`Error 404: No se encontró el endpoint /ocr. Por favor, verifica que la URL de NGROK (${NGROK_FLASK_URL}) sea correcta y que Flask esté ejecutándose.`);
-         return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const result = await response.json();
-      if (result.success) {
-        setOcrText(result.text);
-      } else {
-        setOcrText(`Error: ${result.error}`);
-      }
     } catch (error) {
-      setOcrText(`Error de conexión: ${error}. Asegúrate de que el servidor de Flask esté corriendo.`);
+      setHistory(prev => {
+        const newHistory = prev.filter(msg => !msg.isThinking);
+        newHistory.push({ sender: 'error', text: `Error de conexión con la IA: ${error.message}.` });
+        return newHistory;
+      });
     } finally {
       setLoading(false);
     }
   };
-  
-  const displayedText = isExpanded ? ocrText : `${ocrText.substring(0, 500)}${ocrText.length > 500 ? '...' : ''}`;
-  const showButton = ocrText.length > 500 && ocrText !== 'El texto extraído aparecerá aquí...' && !loading;
-  
-  const isOcrTextReady = ocrText.length > 0 && ocrText !== 'El texto extraído aparecerá aquí...' && !ocrText.startsWith('Procesando') && !ocrText.startsWith('Error');
+
 
   return (
-    <div className="container main-content">
-      <header className="App-header">
-        <h1>OCR - Lector de Documentos</h1>
-        <p>Sube un documento o imagen para extraer el texto.</p>
-        <div className="form-group">
-          <input type="file" onChange={handleFileChange} accept="image/*, .pdf" />
-        </div>
-        <button onClick={uploadAndProcess} disabled={loading}>
-          {loading ? 'Procesando...' : 'Procesar Documento'}
-        </button>
-        <div className="output-box">
-          <pre>{displayedText}</pre>
-          {showButton && (
-            <button onClick={() => setIsExpanded(!isExpanded)} className="expand-button">
-              {isExpanded ? 'Mostrar menos' : 'Mostrar más'}
+    <div className="ocr-chat-container">
+      <div className="chat-header">
+        <h2>{file ? file.name : "Extraer Texto"}</h2>
+        <div className="file-upload-group">
+            <label htmlFor="file-input" className="custom-file-upload">
+                {file ? "Cambiar Archivo" : "Subir Archivo"}
+            </label>
+            <input id="file-input" type="file" onChange={handleFileChange} accept="image/*, .pdf" style={{display: 'none'}} />
+            <button onClick={uploadAndProcess} disabled={loading || !file} className="process-button">
+              {loading ? '...' : 'Extraer'}
             </button>
-          )}
         </div>
-        
-        {isOcrTextReady && (
-          <button 
-            onClick={speakOcrText} 
-            disabled={loading || !isOcrTextReady}
-            className={`tts-button ${loadingOcrTTS ? 'tts-speaking' : ''}`}
-          >
-            {loadingOcrTTS ? '🛑 Detener Lectura' : '🔊 Escuchar Texto Extraído'}
-          </button>
+      </div>
+      
+      <div className="chat-history-box">
+        {history.length === 0 ? (
+            <div className="chat-placeholder">
+                <p>Comienza subiendo un documento (PDF o imagen) para extraer su texto.</p>
+                <p>Una vez extraído, podrás preguntarle a la IA sobre su contenido.</p>
+            </div>
+        ) : (
+            history.map((msg, index) => (
+                <div key={index} className={`chat-message ${msg.sender}`}>
+                    <div className="message-icon">
+                        {msg.sender === 'user' ? '👤' : (msg.sender === 'ai' ? '✨' : '⚠️')}
+                    </div>
+                    <div className="message-content">
+                        <pre>{msg.text}</pre>
+                        {/* Botón para leer la respuesta de la IA */}
+                        {msg.sender === 'ai' && !msg.isThinking && (
+                            <button 
+                                onClick={() => speakText(msg.text)} 
+                                className={`chat-tts-button ${loadingOcrTTS ? 'tts-speaking' : ''}`}
+                            >
+                                {loadingOcrTTS ? '🛑' : '🔊'}
+                            </button>
+                        )}
+                        {/* Botón para ver el texto completo de OCR */}
+                        {msg.fullText && (
+                            <button 
+                                onClick={() => setShowFullOcrModal(true)} 
+                                className="chat-view-ocr-button"
+                            >
+                                Ver Texto Completo (OCR)
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))
         )}
         
-        <button 
-          onClick={() => setShowModal(true)} 
-          disabled={!isOcrTextReady}
-          className="ask-ai-button"
-        >
-          Preguntar a la IA
+      </div>
+      
+      <form className="chat-input-area" onSubmit={askAIChat}>
+        <textarea
+          rows="1"
+          value={preguntaChat}
+          onChange={(e) => setPreguntaChat(e.target.value)}
+          placeholder={ocrText ? "Haz una pregunta sobre el texto extraído..." : "Extrae un texto para empezar a preguntar..."}
+          disabled={!ocrText || loading}
+        />
+        <button type="submit" disabled={!preguntaChat.trim() || !ocrText || loading}>
+          {loading ? '...' : 'Enviar'}
         </button>
+      </form>
 
-      </header>
-      {showModal && <AIModal ocrText={ocrText} onClose={() => setShowModal(false)} />}
+      {/* RENDERIZADO DEL NUEVO MODAL DE TEXTO COMPLETO */}
+      {showFullOcrModal && <OCRTextModal ocrText={ocrText} onClose={() => setShowFullOcrModal(false)} />}
+      
+      {/* El antiguo modal de IA se puede renderizar aquí si decides no usar la interfaz de chat, o si quieres una función extra: */}
+      {/* {showModal && <AIModal ocrText={ocrText} onClose={() => setShowModal(false)} />} */}
     </div>
   );
 };
+
 
 // Componente de la nueva página del conversor de archivos (ACTUALIZADO PARA MÚLTIPLES ARCHIVOS)
 const FileConverterPage = () => {
@@ -333,6 +367,12 @@ const FileConverterPage = () => {
   const [status, setStatus] = useState('Selecciona un archivo y un tipo de conversión.');
   const [loading, setLoading] = useState(false);
   const [convertedFileUrl, setConvertedFileUrl] = useState(null);
+  
+  // Limpiamos la voz si estamos en esta página
+  useEffect(() => {
+    stopSpeaking();
+  }, []);
+
 
   const handleFileChange = (e) => {
     // Si es img-to-video, tomamos múltiples archivos
@@ -420,8 +460,8 @@ const FileConverterPage = () => {
       });
 
       if (response.status === 404) {
-         setStatus(`Error 404: No se encontró el endpoint /convert. Verifica la URL.`);
-         return;
+        setStatus(`Error 404: No se encontró el endpoint /convert. Verifica la URL.`);
+        return;
       }
 
       if (!response.ok) {
@@ -449,7 +489,7 @@ const FileConverterPage = () => {
   };
 
   return (
-    <div className="container main-content">
+    <div className="container main-content converter-page">
       <header className="App-header">
         <h1>Convertidor de Archivos</h1>
         <p>Convierte tus documentos, imágenes y videos.</p>
@@ -520,36 +560,87 @@ const AboutPage = () => (
 );
 
 const FeaturesPage = () => (
-  <section className="section-container">
-    <h2>Próximos Agregados</h2>
-    <div className="collapsible-content">
-      <ul>
-        <li>Convertidor de archivos (Slideshow de Fotos a Video) - **¡Agregado y en funcionamiento!**</li>
-        <li>Soporte para más idiomas (francés, alemán, etc.)</li>
-      </ul>
-    </div>
-  </section>
+  <div className="container features-page">
+    <section className="section-container">
+      <h2>Próximos Agregados</h2>
+      <div className="collapsible-content">
+        <ul>
+          <li>Convertidor de archivos (Slideshow de Fotos a Video) - **¡Agregado y en funcionamiento!**</li>
+          <li>Soporte para más idiomas (francés, alemán, etc.)</li>
+        </ul>
+      </div>
+    </section>
+  </div>
 );
 
+
+// Nuevo Componente Sidebar
+const Sidebar = ({ isOpen, onClose }) => {
+    const location = useLocation();
+
+    const menuItems = [
+        { path: "/", label: "✨ Extractor de Texto (Chat)" },
+        { path: "/convertir-archivos", label: "📁 Convertir Archivos" },
+        { path: "/proximos-agregados", label: "💡 Próximos agregados" },
+        { path: "/conoceme", label: "👤 Conóceme" },
+    ];
+    
+    return (
+        <>
+            <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
+            <div className={`sidebar ${isOpen ? 'open' : ''}`}>
+                <div className="sidebar-header">
+                    <span className="sidebar-brand">AI Toolkit</span>
+                    <button className="sidebar-close" onClick={onClose}>&times;</button>
+                </div>
+                <nav className="sidebar-nav">
+                    {menuItems.map(item => (
+                        <Link 
+                            key={item.path} 
+                            to={item.path} 
+                            onClick={onClose}
+                            className={location.pathname === item.path ? 'active' : ''}
+                        >
+                            {item.label}
+                        </Link>
+                    ))}
+                </nav>
+                <div className="sidebar-footer">
+                    <p>Creado con React, Flask y /gTTS</p>
+                </div>
+            </div>
+        </>
+    );
+};
+
+
 function App() {
-  const [navOpen, setNavOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  
+  // Limpiamos la voz y cerramos el menú si la ruta cambia
+  useEffect(() => {
+    stopSpeaking();
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
-    <Router>
-      <div className="App">
-        <nav className="navbar">
-          <div className="nav-brand">OCR App</div>
-          <button className="menu-toggle" onClick={() => setNavOpen(!navOpen)}>
-            {navOpen ? 'Cerrar' : 'Menú'}
-          </button>
-          <div className={`nav-links ${navOpen ? 'open' : ''}`}>
-            <Link to="/">Extractor de Texto</Link>
-            <Link to="/convertir-archivos">Convertir Archivos</Link>
-            <Link to="/proximos-agregados">Próximos agregados</Link>
-            <Link to="/conoceme">Conóceme</Link>
-          </div>
-        </nav>
-        <div className="content-wrapper">
+    <div className="App">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        
+        <div className={`content-wrapper ${sidebarOpen ? 'sidebar-open' : ''}`}>
+            <header className="main-header">
+                <button className="menu-toggle-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                    ☰
+                </button>
+                <div className="header-title">
+                    {location.pathname === '/' ? 'OCR - Extractor de Texto' : 
+                      location.pathname === '/convertir-archivos' ? 'Convertidor de Archivos' :
+                      location.pathname === '/proximos-agregados' ? 'Próximas Funcionalidades' :
+                      'Conóceme'}
+                </div>
+                <div className="header-user-icon">👤</div> 
+            </header>
           <Routes>
             <Route path="/" element={<OCRPage />} />
             <Route path="/convertir-archivos" element={<FileConverterPage />} />
@@ -558,8 +649,14 @@ function App() {
           </Routes>
         </div>
       </div>
-    </Router>
   );
 }
 
-export default App;
+// Envuelve App con Router
+const Root = () => (
+  <Router>
+    <App />
+  </Router>
+);
+
+export default Root;
