@@ -7,7 +7,7 @@
   background-color: #1a1a2e; /* Fondo principal muy oscuro (Azul/Púrpura Profundo) */
   color: #e0e0e0; /* Texto claro */
   min-height: 100vh;
-  display: flex; /* Para el layout con Sidebar */
+  display: flex; 
 }
 
 /* Contenedor principal que se mueve con la sidebar */
@@ -16,8 +16,14 @@
     min-height: 100vh;
     padding-top: 50px; /* Espacio para el header fijo */
     transition: margin-left 0.3s ease;
-    /* Ajuste para que el scroll esté en el wrapper */
     overflow-y: auto; 
+}
+
+/* 🟢 Efecto de Sidebar Abierta (Solo en Escritorio) */
+@media (min-width: 769px) {
+    .content-wrapper.sidebar-open {
+        margin-left: 280px; /* Desplaza el contenido para el panel lateral */
+    }
 }
 
 /* OTRAS PAGINAS (No chat) */
@@ -25,10 +31,10 @@
   max-width: 900px;
   margin: 2rem auto;
   padding: 2rem;
-  background-color: #2c2c44; /* Fondo del contenedor (Gris oscuro) */
+  background-color: #2c2c44; 
   border-radius: 12px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
-  text-align: left; /* Alineación para páginas no-chat */
+  text-align: left; 
 }
 
 .main-content {
@@ -39,10 +45,10 @@
 .main-header {
     position: fixed;
     top: 0;
-    left: 0;
+    left: 0; 
     right: 0;
     height: 50px;
-    background-color: #1a1a2e; /* Color oscuro que coincide con el fondo */
+    background-color: #1a1a2e; 
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
@@ -53,11 +59,13 @@
 .menu-toggle-btn {
     background: none;
     border: none;
-    color: #b3e5fc; /* Azul claro */
+    color: #b3e5fc; 
     font-size: 1.5rem;
     cursor: pointer;
     margin-right: 1rem;
     padding: 0.25rem 0.5rem;
+    position: relative; 
+    z-index: 901; 
 }
 .menu-toggle-btn:hover {
     background-color: #383857;
@@ -67,7 +75,7 @@
     flex-grow: 1;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #4caf50; /* Verde vibrante */
+    color: #4caf50; 
     text-align: left;
 }
 
@@ -82,6 +90,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
 }
 
 
@@ -89,10 +98,10 @@
 .sidebar {
     position: fixed;
     top: 0;
-    left: -280px; /* Inicialmente fuera de la vista */
+    left: -280px; 
     width: 280px;
     height: 100%;
-    background-color: #1f1f3a; /* Fondo de la sidebar (Azul/Púrpura) */
+    background-color: #1f1f3a; 
     color: #e0e0e0;
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.7);
     z-index: 1000;
@@ -143,6 +152,7 @@
     font-size: 2rem;
     color: #b3e5fc;
     cursor: pointer;
+    padding: 0.5rem; 
 }
 
 .sidebar-nav {
@@ -168,7 +178,7 @@
 }
 
 .sidebar-nav a.active {
-    background-color: #4caf50; /* Color de acento para la ruta activa */
+    background-color: #4caf50; 
     color: #1a1a2e;
     font-weight: 700;
 }
@@ -185,7 +195,7 @@
 .ocr-chat-container {
     max-width: 800px;
     margin: 1rem auto;
-    height: calc(100vh - 70px); /* 100% de la ventana menos el header y algo de margen */
+    height: calc(100vh - 70px); 
     display: flex;
     flex-direction: column;
     background-color: #2c2c44; 
@@ -215,7 +225,7 @@
 }
 
 .custom-file-upload {
-    background-color: #444466; /* Gris/Púrpura suave */
+    background-color: #444466; 
     color: #e0e0e0;
     padding: 0.5rem 1rem;
     border-radius: 8px;
@@ -243,7 +253,24 @@
     flex-direction: column;
     gap: 1.5rem;
     text-align: left;
+    /* Estilo de la barra de desplazamiento */
+    scrollbar-color: #4caf50 #383857;
+    scrollbar-width: thin;
 }
+
+/* Webkit (Chrome, Safari) Scrollbar */
+.chat-history-box::-webkit-scrollbar {
+    width: 8px;
+}
+.chat-history-box::-webkit-scrollbar-track {
+    background: #383857;
+}
+.chat-history-box::-webkit-scrollbar-thumb {
+    background-color: #4caf50;
+    border-radius: 4px;
+    border: 2px solid #383857;
+}
+
 
 .chat-placeholder {
     margin: auto;
@@ -275,20 +302,34 @@
 }
 
 .message-content {
-    background-color: #383857; /* Fondo de burbuja */
+    background-color: #383857; 
     padding: 1rem;
     border-radius: 12px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     max-width: 90%;
+    margin-left: auto;
+}
+
+.chat-message.user {
+    justify-content: flex-end; 
 }
 
 .chat-message.user .message-content {
-    background-color: #1e88e5; /* Azul para el usuario */
+    background-color: #1e88e5; 
     color: white;
+    margin-right: 0; 
 }
 .chat-message.ai .message-content {
-    background-color: #383857; /* Púrpura oscuro para la IA */
+    background-color: #383857; 
+    margin-left: 0;
 }
+.chat-message.user .message-icon {
+    display: none;
+}
+.chat-message.ai .message-icon {
+    display: block;
+}
+
 
 .message-content pre {
     white-space: pre-wrap;
@@ -345,12 +386,21 @@
     flex-grow: 1;
     padding: 0.75rem;
     border: 1px solid #444466;
-    border-radius: 20px; /* Bordes redondeados de chat */
+    border-radius: 20px; 
     background-color: #383857;
     color: #e0e0e0;
     resize: none;
-    overflow-y: hidden; /* Ocultar barra de scroll si es posible */
+    overflow-y: hidden; 
+    line-height: 1.5; 
+    min-height: 50px; 
+    box-sizing: border-box;
 }
+.chat-input-area textarea:focus {
+    border-color: #4caf50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+    outline: none;
+}
+
 
 .chat-input-area button {
     flex-shrink: 0;
@@ -383,21 +433,33 @@
   text-align: left;
 }
 
-input[type="file"], select, .ai-input {
+input[type="file"] {
+    width: 100%;
+    max-width: 100%; 
+    padding: 0.5rem;
+    border: 1px solid #444466; 
+    border-radius: 8px;
+    background-color: #383857; 
+    color: #e0e0e0;
+    display: block;
+    box-sizing: border-box;
+}
+
+select {
   padding: 0.75rem;
   border: 1px solid #444466; 
   border-radius: 8px;
   background-color: #383857; 
   color: #e0e0e0;
-  width: 100%;
-  max-width: 400px;
+  width: auto;
+  min-width: 200px; 
   display: inline-block;
-  box-sizing: border-box;
 }
 
-select {
-  margin-left: 0.5rem;
-  max-width: 300px;
+.note {
+    font-size: 0.85rem;
+    color: #999;
+    margin-top: 0.5rem;
 }
 
 /* Botones Generales */
@@ -426,7 +488,28 @@ button:disabled {
   box-shadow: none;
 }
 
-/* --- Modal IA Styles (Se mantienen) --- */
+.status-box {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: #1f1f3a;
+    border-radius: 8px;
+    border-left: 5px solid #4caf50;
+}
+.status-box p {
+    margin-bottom: 0.5rem;
+}
+.download-link {
+    color: #b3e5fc;
+    text-decoration: none;
+    font-weight: 600;
+    display: block;
+    margin-top: 10px;
+}
+.download-link:hover {
+    text-decoration: underline;
+}
+
+/* --- Modal IA Styles --- */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -460,48 +543,12 @@ button:disabled {
   color: #b3b3b3;
   padding: 0.5rem;
   line-height: 1;
+  z-index: 10;
 }
 
 .modal-close-button:hover {
   color: #fff;
   background-color: #444466;
-}
-
-.form-group-ai {
-  display: flex;
-  gap: 0.5rem;
-  align-items: stretch;
-  margin-bottom: 1rem;
-}
-
-.form-group-ai button {
-  flex-shrink: 0;
-  align-self: flex-start;
-  background-color: #1e88e5; 
-  color: #fff;
-  box-shadow: 0 4px 6px rgba(30, 136, 229, 0.4);
-}
-
-.form-group-ai button:hover:not(:disabled) {
-  background-color: #42a5f5; 
-}
-
-.output-box-ai {
-  margin-top: 1rem;
-  padding: 1rem;
-  background-color: #383857; 
-  border-radius: 8px;
-  text-align: left;
-  min-height: 80px;
-  border: 1px solid #b3e5fc; 
-  margin-bottom: 1rem;
-}
-
-.output-box-ai pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  color: #e0e0e0; 
-  margin: 0;
 }
 
 .tts-button {
@@ -520,9 +567,7 @@ button:disabled {
 }
 
 
-/* --- NUEVOS ESTILOS PARA EL MODAL DE TEXTO COMPLETO --- */
-
-/* Ajuste del tamaño del modal de texto para que sea más grande */
+/* --- ESTILOS PARA EL MODAL DE TEXTO COMPLETO --- */
 .modal-content.text-view-modal {
     max-width: 800px; 
     height: 80vh;
@@ -536,17 +581,16 @@ button:disabled {
     flex-direction: column;
 }
 
-/* Estilo para la caja de texto completo de OCR dentro del modal */
 .output-box-ocr-full {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #383857; /* Fondo oscuro */
+  background-color: #383857; 
   border-radius: 8px;
   text-align: left;
   min-height: 150px;
-  max-height: 60vh; /* Límite de altura visual */
-  overflow-y: auto; /* Scroll si es necesario */
-  border: 1px solid #4caf50; /* Borde verde para distinguirlo del modal de IA */
+  max-height: 60vh; 
+  overflow-y: auto; 
+  border: 1px solid #4caf50; 
   margin-bottom: 1rem;
   flex-grow: 1;
 }
@@ -556,6 +600,60 @@ button:disabled {
   word-wrap: break-word;
   color: #e0e0e0; 
   margin: 0;
+}
+
+/* Estilos de la página de conversor de archivos */
+.converter-page .form-group {
+    display: flex;
+    flex-direction: column;
+}
+.converter-page label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #b3e5fc;
+}
+
+/* --- ESTILOS PARA LA PÁGINA QR (NUEVOS) --- */
+.qr-converter-page input[type="text"] {
+    padding: 0.75rem;
+    border: 1px solid #444466; 
+    border-radius: 8px;
+    background-color: #383857; 
+    color: #e0e0e0;
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+    margin-top: 5px;
+}
+
+.qr-output-box {
+    text-align: center;
+    border-left: none; 
+    border: 1px solid #4caf50;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.qr-image-preview {
+    max-width: 250px;
+    width: 100%;
+    height: auto;
+    border: 5px solid #e0e0e0; 
+    border-radius: 8px;
+    margin-top: 1.5rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.qr-image-preview:hover {
+    transform: scale(1.05);
+}
+
+.qr-download-link {
+    margin-bottom: 1.5rem;
 }
 
 
@@ -578,8 +676,31 @@ button:disabled {
         align-items: flex-start;
         gap: 0.5rem;
     }
+    .file-upload-group {
+        width: 100%;
+        justify-content: space-between;
+    }
     .modal-content {
         padding: 1rem;
         width: 95%;
+    }
+    .modal-content.text-view-modal {
+        height: 90vh; 
+    }
+    .output-box-ocr-full {
+        max-height: 70vh; 
+    }
+    .chat-input-area {
+        padding: 0.5rem 1rem; 
+    }
+    .chat-input-area textarea {
+        min-height: 40px;
+    }
+    .chat-input-area button {
+        width: 40px;
+        height: 40px;
+    }
+    .qr-converter-page input[type="text"] {
+        max-width: 100%;
     }
 }

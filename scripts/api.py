@@ -19,6 +19,8 @@ import base64
 from gtts import gTTS 
 # Importaciones para las conversiones de video
 from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, ImageSequenceClip
+import glob # Para limpieza de moviepy
+import qrcode # NUEVA LIBRERÍA
 
 app = Flask(__name__)
 CORS(app)
@@ -32,7 +34,20 @@ if not os.path.exists(UPLOAD_FOLDER):
 genai.configure(api_key="AIzaSyCXvPEexvkElKELeaR5iRK3Uu1D_iZZvHs")
 
 # --------------------------------------------------------------------------------
-# 1. ENDPOINT DE OCR (Sin cambios)
+# Limpieza de temporales de MoviePy (para evitar fugas de disco)
+# --------------------------------------------------------------------------------
+def cleanup_moviepy_temps(temp_dir):
+    """Limpia archivos temporales creados por MoviePy y otros libs."""
+    patterns = ['_tmp*', 'audiotmp*']
+    for pattern in patterns:
+        for f in glob.glob(os.path.join(temp_dir, pattern)):
+            try:
+                os.remove(f)
+            except Exception as e:
+                print(f"Error al limpiar archivo temporal {f}: {e}")
+
+# --------------------------------------------------------------------------------
+# 1. ENDPOINT DE OCR
 # --------------------------------------------------------------------------------
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
@@ -85,7 +100,7 @@ def ocr_endpoint():
 
 
 # --------------------------------------------------------------------------------
-# 2. ENDPOINT PARA PREGUNTAR A LA IA (Sin cambios)
+# 2. ENDPOINT PARA PREGUNTAR A LA IA
 # --------------------------------------------------------------------------------
 @app.route('/ask', methods=['POST'])
 def ask_question():
@@ -131,7 +146,7 @@ def ask_question():
         return jsonify({"success": False, "error": f"Error al interactuar con la IA. Detalles: {str(e)}"}), 500
 
 # --------------------------------------------------------------------------------
-# 3. ENDPOINT PARA SÍNTESIS DE VOZ (Sin cambios)
+# 3. ENDPOINT PARA SÍNTESIS DE VOZ
 # --------------------------------------------------------------------------------
 @app.route('/tts', methods=['POST'])
 def synthesize_speech():
@@ -161,7 +176,7 @@ def synthesize_speech():
         return jsonify({"success": False, "error": f"Error en la API de TTS (gTTS): {str(e)}"}), 500
 
 # --------------------------------------------------------------------------------
-# 4. ENDPOINT PARA CONVERSIÓN DE ARCHIVOS (MODIFICADO)
+# 4. ENDPOINT PARA CONVERSIÓN DE ARCHIVOS
 # --------------------------------------------------------------------------------
 @app.route('/convert', methods=['POST'])
 def convert_file():
@@ -201,17 +216,12 @@ def convert_file():
             temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".mp4")
             os.close(temp_output_fd)
             
-            # Crea un clip de secuencia de imágenes (cada imagen dura 2 segundos por defecto)
-            # duration=2.0 significa que cada imagen se muestra durante 2.0 segundos
             clip = ImageSequenceClip(temp_input_paths, durations=[2.0] * len(temp_input_paths)) 
             
-            # Si hay archivo de audio, usarlo para determinar la duración total
             if audio_file_path:
                 audio_clip = AudioFileClip(audio_file_path)
-                # Recorta el clip de la imagen para que coincida con la duración del audio
                 clip = clip.set_duration(audio_clip.duration).set_audio(audio_clip)
             
-            # Escribir el video
             clip.write_videofile(temp_output_path, codec='libx264', fps=24, logger=None)
             clip.close()
 
@@ -239,7 +249,12 @@ def convert_file():
                 os.close(temp_output_fd)
                 
                 video_clip = VideoFileClip(temp_input_path)
-                video_clip.audio.write_audiofile(temp_output_path)
+                
+                if video_clip.audio:
+                    video_clip.audio.write_audiofile(temp_output_path, logger=None)
+                else:
+                    raise ValueError("El archivo de video no contiene una pista de audio para extraer.")
+                    
                 video_clip.close() 
 
                 return send_file(temp_output_path, mimetype='audio/mp3', as_attachment=True, download_name=output_filename + '.mp3')
@@ -258,6 +273,20 @@ def convert_file():
                 img.save(output_buffer, format="JPEG")
                 output_buffer.seek(0)
                 return send_file(output_buffer, mimetype='image/jpeg', as_attachment=True, download_name=output_filename + '.jpg')
+            
+            elif conversion_type == 'png-to-webp':
+                img = Image.open(temp_input_path)
+                output_buffer = io.BytesIO()
+                img.save(output_buffer, format="WEBP")
+                output_buffer.seek(0)
+                return send_file(output_buffer, mimetype='image/webp', as_attachment=True, download_name=output_filename + '.webp')
+            
+            elif conversion_type == 'webp-to-png':
+                img = Image.open(temp_input_path)
+                output_buffer = io.BytesIO()
+                img.save(output_buffer, format="PNG")
+                output_buffer.seek(0)
+                return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=output_filename + '.png')
             
             # --- Otras Conversiones (Documentos y Datos) ---
             elif conversion_type == 'pdf-to-word':
@@ -285,11 +314,15 @@ def convert_file():
                     raise ValueError("El PDF no contiene texto para convertir a CSV.")
 
                 from io import StringIO
-                df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', on_bad_lines='skip')
                 
-                if df.empty:
+                try:
+                    df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', on_bad_lines='skip')
+                except Exception as e:
                     lines = [line.strip() for line in all_text.split('\n') if line.strip()]
                     df = pd.DataFrame(lines, columns=['Content'])
+
+                if df.empty:
+                    raise ValueError("El PDF no pudo ser parseado como datos estructurados.")
                 
                 output_buffer = io.BytesIO()
                 df.to_csv(output_buffer, index=False, encoding='utf-8')
@@ -297,8 +330,6 @@ def convert_file():
                 
                 return send_file(output_buffer, mimetype='text/csv', as_attachment=True, download_name=output_filename + '.csv')
                 
-            # ... (Aquí irían el resto de las conversiones de archivo único: png-to-webp, webp-to-png, text-to-pdf, etc.) ...
-            
             else:
                  return jsonify({"error": "Tipo de conversión no soportado."}), 400
 
@@ -316,7 +347,52 @@ def convert_file():
             os.remove(audio_file_path)
         if 'temp_output_path' in locals() and temp_output_path and os.path.exists(temp_output_path):
             os.remove(temp_output_path)
+            
+        # Limpieza de temporales de librerías externas
+        cleanup_moviepy_temps(tempfile.gettempdir())
     
+# --------------------------------------------------------------------------------
+# 5. ENDPOINT PARA CONVERSIÓN DE URL a QR (NUEVO)
+# --------------------------------------------------------------------------------
+@app.route('/convert-url-to-qr', methods=['POST'])
+def convert_url_to_qr():
+    data = request.json
+    url_data = data.get('url', '')
+
+    if not url_data:
+        return jsonify({"error": "No se proporcionó una URL para convertir."}), 400
+
+    try:
+        # Crea el objeto QR
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url_data)
+        qr.make(fit=True)
+
+        # Genera la imagen con colores del tema oscuro
+        img = qr.make_image(fill_color="#1a1a2e", back_color="#e0e0e0").convert('RGB')
+        
+        # Guarda la imagen QR en un buffer para enviarla como respuesta
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        img_buffer.seek(0)
+
+        # Envía la imagen PNG
+        return send_file(
+            img_buffer, 
+            mimetype='image/png', 
+            as_attachment=True, 
+            download_name='qr_code.png'
+        )
+
+    except Exception as e:
+        print(f"Error al generar el código QR: {e}")
+        return jsonify({"error": f"Error al generar el QR: {str(e)}"}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5000)
