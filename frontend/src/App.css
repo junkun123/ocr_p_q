@@ -613,7 +613,7 @@ button:disabled {
     color: #b3e5fc;
 }
 
-/* --- ESTILOS PARA LA PÁGINA QR (NUEVOS) --- */
+/* --- ESTILOS PARA LA PÁGINA QR (ACTUALIZADO) --- */
 .qr-converter-page input[type="text"] {
     padding: 0.75rem;
     border: 1px solid #444466; 
@@ -654,6 +654,15 @@ button:disabled {
 
 .qr-download-link {
     margin-bottom: 1.5rem;
+}
+
+.qr-type-selector {
+    text-align: center;
+}
+.qr-type-selector select {
+    min-width: 250px;
+    margin: 0 auto;
+    display: block;
 }
 
 

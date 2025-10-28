@@ -6,7 +6,7 @@ import Profile from './Profile';
 // --------------------------------------------------------------------------------------------------
 // !! IMPORTANTE !! CAMBIA ESTA URL SIEMPRE QUE REINICIES NGROK (debe ser la que apunta a :5000)
 // --------------------------------------------------------------------------------------------------
-const NGROK_FLASK_URL = ' https://e9bb11b6d495.ngrok-free.app'; 
+const NGROK_FLASK_URL = 'https://8cedf104daa9.ngrok-free.app'; 
 // --------------------------------------------------------------------------------------------------
 
 // Referencia global para el objeto de audio que se está reproduciendo
@@ -355,34 +355,55 @@ const OCRPage = () => {
 };
 
 
-// Componente de la nueva página del conversor de URL a QR (NUEVO)
+// Componente de la página del conversor de URL/Imagen a QR (ACTUALIZADO)
 const QRConverterPage = () => {
+    const [qrType, setQrType] = useState('url'); // 'url' o 'image'
     const [url, setUrl] = useState('');
-    const [status, setStatus] = useState('Introduce una URL para generar el código QR.');
+    const [imageFile, setImageFile] = useState(null);
+    const [status, setStatus] = useState('Selecciona un tipo de QR y proporciona los datos.');
     const [loading, setLoading] = useState(false);
     const [qrCodeUrl, setQrCodeUrl] = useState(null);
     
+    // Resetea estados al cambiar de tipo de QR
     useEffect(() => {
         stopSpeaking();
-    }, []);
+        setUrl('');
+        setImageFile(null);
+        setQrCodeUrl(null);
+        setStatus('Selecciona un tipo de QR y proporciona los datos.');
+    }, [qrType]); 
 
     const handleConversion = async () => {
-        if (!url.trim()) {
-            setStatus("Por favor, introduce una URL válida.");
-            return;
+        let isValid = true;
+
+        if (qrType === 'url' && !url.trim()) {
+            setStatus("Por favor, introduce una URL o texto válido.");
+            isValid = false;
+        } else if (qrType === 'image' && !imageFile) {
+            setStatus("Por favor, selecciona una imagen para subir.");
+            isValid = false;
         }
-        
+
+        if (!isValid) return;
+
         setLoading(true);
         setStatus("Generando código QR, por favor espera...");
         setQrCodeUrl(null);
 
+        const formData = new FormData();
+        formData.append('qr_type', qrType);
+
+        if (qrType === 'url') {
+            formData.append('url_data', url.trim());
+        } else if (qrType === 'image') {
+            formData.append('image_file', imageFile);
+        }
+        
         try {
-            const response = await fetch(`${NGROK_FLASK_URL}/convert-url-to-qr`, {
+            // Se usa el nuevo endpoint /generate-qr y se envía un FormData
+            const response = await fetch(`${NGROK_FLASK_URL}/generate-qr`, { 
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ url: url.trim() }),
+                body: formData,
             });
 
             if (!response.ok) {
@@ -398,7 +419,12 @@ const QRConverterPage = () => {
             const blob = await response.blob();
             const newUrl = URL.createObjectURL(blob);
             setQrCodeUrl(newUrl);
-            setStatus("¡QR generado con éxito! Haz clic en el enlace o la imagen para descargar.");
+            
+            if (qrType === 'image') {
+                setStatus("¡QR de imagen generado! Al escanearlo, se cargará la imagen. Asegúrate de que tu servidor (Ngrok) esté activo.");
+            } else {
+                setStatus("¡QR generado con éxito! Haz clic en el enlace o la imagen para descargar.");
+            }
             
         } catch (error) {
             setStatus(`Error en la generación de QR: ${error.message}.`);
@@ -411,20 +437,50 @@ const QRConverterPage = () => {
         <div className="container main-content qr-converter-page">
             <header className="App-header">
                 <h1>Generador de Código QR</h1>
-                <p>Convierte cualquier URL o texto en un código QR escaneable.</p>
+                <p>Convierte una URL/Texto simple o una imagen que se mostrará al escanear.</p>
                 
-                <div className="form-group">
-                    <label htmlFor="url-input">URL o Texto:</label>
-                    <input 
-                        id="url-input"
-                        type="text" 
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="https://ejemplo.com"
-                    />
+                {/* Selector de Tipo de QR */}
+                <div className="form-group qr-type-selector">
+                    <label>Tipo de Contenido:</label>
+                    <select value={qrType} onChange={(e) => setQrType(e.target.value)}>
+                        <option value="url">URL / Texto Simple</option>
+                        <option value="image">Imagen (Subir y Enlazar)</option>
+                    </select>
                 </div>
+
+                {/* Input condicional: URL/Texto */}
+                {qrType === 'url' && (
+                    <div className="form-group">
+                        <label htmlFor="url-input">URL o Texto:</label>
+                        <input 
+                            id="url-input"
+                            type="text" 
+                            value={url}
+                            onChange={(e) => setUrl(e.target.value)}
+                            placeholder="https://ejemplo.com o texto corto"
+                        />
+                    </div>
+                )}
                 
-                <button onClick={handleConversion} disabled={loading || !url.trim()}>
+                {/* Input condicional: Imagen */}
+                {qrType === 'image' && (
+                    <div className="form-group">
+                        <label htmlFor="image-file-input">Seleccionar Imagen (JPG, PNG, WEBP):</label>
+                        <input 
+                            id="image-file-input"
+                            type="file" 
+                            accept="image/jpeg, image/png, image/webp"
+                            onChange={(e) => setImageFile(e.target.files[0])}
+                        />
+                        {imageFile && <p className="note">Archivo seleccionado: {imageFile.name}</p>}
+                        <p className="note">⚠️ La imagen se almacena temporalmente en la carpeta 'qr_images' de tu PC y el QR enlaza a ella.</p>
+                    </div>
+                )}
+                
+                <button 
+                    onClick={handleConversion} 
+                    disabled={loading || (qrType === 'url' && !url.trim()) || (qrType === 'image' && !imageFile)}
+                >
                     {loading ? 'Generando...' : 'Generar QR'}
                 </button>
                 
@@ -454,7 +510,7 @@ const QRConverterPage = () => {
 };
 
 
-// Componente de la nueva página del conversor de archivos
+// Componente de la nueva página del conversor de archivos (Sin cambios)
 const FileConverterPage = () => {
   const [files, setFiles] = useState([]); // Ahora es una lista de archivos
   const [audioFile, setAudioFile] = useState(null); 
@@ -676,7 +732,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
     const menuItems = [
         { path: "/", label: "✨ Extractor de Texto (Chat)" },
-        { path: "/qr-generator", label: "🔗 Generador de QR" }, // NUEVO ENLACE
+        { path: "/qr-generator", label: "🔗 Generador de QR" }, 
         { path: "/convertir-archivos", label: "📁 Convertir Archivos" },
         { path: "/proximos-agregados", label: "💡 Próximos agregados" },
         { path: "/conoceme", label: "👤 Conóceme" },
@@ -732,7 +788,7 @@ function App() {
                 </button>
                 <div className="header-title">
                     {location.pathname === '/' ? 'OCR - Extractor de Texto' : 
-                      location.pathname === '/qr-generator' ? 'Generador de Código QR' : // TÍTULO QR
+                      location.pathname === '/qr-generator' ? 'Generador de Código QR' : 
                       location.pathname === '/convertir-archivos' ? 'Convertidor de Archivos' :
                       location.pathname === '/proximos-agregados' ? 'Próximas Funcionalidades' :
                       'Conóceme'}
@@ -741,7 +797,7 @@ function App() {
             </header>
           <Routes>
             <Route path="/" element={<OCRPage />} />
-            <Route path="/qr-generator" element={<QRConverterPage />} /> {/* RUTA QR */}
+            <Route path="/qr-generator" element={<QRConverterPage />} /> 
             <Route path="/convertir-archivos" element={<FileConverterPage />} />
             <Route path="/proximos-agregados" element={<FeaturesPage />} />
             <Route path="/conoceme" element={<AboutPage />} />

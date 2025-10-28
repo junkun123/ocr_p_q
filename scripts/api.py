@@ -11,30 +11,42 @@ import mimetypes
 from pdf2docx import Converter as PDFtoDOCXConverter
 from docx2pdf import convert as DOCXtoPDFConverter
 import tempfile
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
 import pandas as pd 
 import json
 import base64
 from gtts import gTTS 
-# Importaciones para las conversiones de video
 from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, ImageSequenceClip
-import glob # Para limpieza de moviepy
-import qrcode # NUEVA LIBRERÍA
+import glob 
+import qrcode 
 
 app = Flask(__name__)
 CORS(app)
 
-# Crea una carpeta temporal para los archivos
+# --------------------------------------------------------------------------------
+# ⚠️ CONFIGURACIÓN DE URLS Y RUTAS - DEBES EDITAR ESTA SECCIÓN
+# --------------------------------------------------------------------------------
+
+# 1. URL DE LA API: Usada por el frontend (React). Debe ser la URL de Ngrok.
+#    🚨 REEMPLAZA ESTO con tu URL de Ngrok
+API_SERVER_URL = "https://8cedf104daa9.ngrok-free.app"  
+
+# 2. URL DEL SERVICIO QR: Codificada en el QR. Usará tu IP local y el puerto 5001.
+QR_SERVICE_URL = "https://422cbbd0e808.ngrok-free.app" 
+
+# Define la carpeta base para uploads, relativa a la ubicación de api.py (que está en 'scripts')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'web_integration', 'uploads')
+QR_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'qr_images') 
+
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+if not os.path.exists(QR_IMAGE_FOLDER):
+    os.makedirs(QR_IMAGE_FOLDER)
 
-# Configura tu clave API de Gemini
+# Configura tu clave API de Gemini 
 genai.configure(api_key="AIzaSyCXvPEexvkElKELeaR5iRK3Uu1D_iZZvHs")
 
 # --------------------------------------------------------------------------------
-# Limpieza de temporales de MoviePy (para evitar fugas de disco)
+# FUNCIÓN DE LIMPIEZA
 # --------------------------------------------------------------------------------
 def cleanup_moviepy_temps(temp_dir):
     """Limpia archivos temporales creados por MoviePy y otros libs."""
@@ -68,11 +80,13 @@ def ocr_endpoint():
         try:
             if file_ext == '.pdf':
                 doc = fitz.open(filepath)
+                # Lógica de OCR para PDF (página por página)
                 for page in doc:
                     pix = page.get_pixmap(dpi=300)
                     temp_image_path = os.path.join(UPLOAD_FOLDER, f"temp_page_{page.number}.png")
                     pix.save(temp_image_path)
                     
+                    # Asegúrate de que 'ocr_lector_documento.py' exista en la carpeta 'scripts'
                     comando = ["python", os.path.join(os.path.dirname(__file__), "ocr_lector_documento.py"), temp_image_path]
                     page_text = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
                     
@@ -83,6 +97,7 @@ def ocr_endpoint():
                 doc.close()
             
             else:
+                # Lógica de OCR para imágenes
                 comando = ["python", os.path.join(os.path.dirname(__file__), "ocr_lector_documento.py"), filepath]
                 texto_extraido = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
             
@@ -196,7 +211,7 @@ def convert_file():
             # === Manejo de múltiples archivos para Imagen a Video ===
             files = request.files.getlist('files[]')
             if not files:
-                 return jsonify({"error": "Debes subir al menos una imagen."}), 400
+                return jsonify({"error": "Debes subir al menos una imagen."}), 400
             
             for f in files:
                 file_ext = os.path.splitext(f.filename)[1]
@@ -242,8 +257,8 @@ def convert_file():
             
             # --- Conversión de Video a Audio ---
             if conversion_type == 'video-to-audio':
-                if file_ext.lower() not in ['.mp4', '.mov', '.avi', '.webm']:
-                    raise ValueError("La entrada para Video a Audio debe ser un formato de video común (MP4, MOV, etc.).")
+                if file_ext.lower() not in ['.mp4', '.mov', '.avi', '.webm', '.mkv']:
+                    raise ValueError("La entrada para Video a Audio debe ser un formato de video común.")
                     
                 temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".mp3")
                 os.close(temp_output_fd)
@@ -260,33 +275,25 @@ def convert_file():
                 return send_file(temp_output_path, mimetype='audio/mp3', as_attachment=True, download_name=output_filename + '.mp3')
             
             # --- Conversiones de Imagen ---
-            elif conversion_type == 'jpg-to-png':
+            elif conversion_type in ['jpg-to-png', 'png-to-jpg', 'png-to-webp', 'webp-to-png']:
                 img = Image.open(temp_input_path)
                 output_buffer = io.BytesIO()
-                img.save(output_buffer, format="PNG")
+                
+                if conversion_type == 'jpg-to-png' or conversion_type == 'webp-to-png':
+                    img.save(output_buffer, format="PNG")
+                    mimetype = 'image/png'
+                    extension = '.png'
+                elif conversion_type == 'png-to-jpg':
+                    img.convert('RGB').save(output_buffer, format="JPEG")
+                    mimetype = 'image/jpeg'
+                    extension = '.jpg'
+                elif conversion_type == 'png-to-webp':
+                    img.save(output_buffer, format="WEBP")
+                    mimetype = 'image/webp'
+                    extension = '.webp'
+                
                 output_buffer.seek(0)
-                return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=output_filename + '.png')
-            
-            elif conversion_type == 'png-to-jpg':
-                img = Image.open(temp_input_path).convert('RGB')
-                output_buffer = io.BytesIO()
-                img.save(output_buffer, format="JPEG")
-                output_buffer.seek(0)
-                return send_file(output_buffer, mimetype='image/jpeg', as_attachment=True, download_name=output_filename + '.jpg')
-            
-            elif conversion_type == 'png-to-webp':
-                img = Image.open(temp_input_path)
-                output_buffer = io.BytesIO()
-                img.save(output_buffer, format="WEBP")
-                output_buffer.seek(0)
-                return send_file(output_buffer, mimetype='image/webp', as_attachment=True, download_name=output_filename + '.webp')
-            
-            elif conversion_type == 'webp-to-png':
-                img = Image.open(temp_input_path)
-                output_buffer = io.BytesIO()
-                img.save(output_buffer, format="PNG")
-                output_buffer.seek(0)
-                return send_file(output_buffer, mimetype='image/png', as_attachment=True, download_name=output_filename + '.png')
+                return send_file(output_buffer, mimetype=mimetype, as_attachment=True, download_name=output_filename + extension)
             
             # --- Otras Conversiones (Documentos y Datos) ---
             elif conversion_type == 'pdf-to-word':
@@ -315,9 +322,10 @@ def convert_file():
 
                 from io import StringIO
                 
+                # Intenta parsear como tabla, si falla, usa el texto crudo
                 try:
                     df = pd.read_csv(StringIO(all_text), sep='\s\s+', engine='python', on_bad_lines='skip')
-                except Exception as e:
+                except Exception:
                     lines = [line.strip() for line in all_text.split('\n') if line.strip()]
                     df = pd.DataFrame(lines, columns=['Content'])
 
@@ -331,13 +339,13 @@ def convert_file():
                 return send_file(output_buffer, mimetype='text/csv', as_attachment=True, download_name=output_filename + '.csv')
                 
             else:
-                 return jsonify({"error": "Tipo de conversión no soportado."}), 400
+                return jsonify({"error": "Tipo de conversión no soportado."}), 400
 
     except Exception as e:
         print(f"Error CRÍTICO en la conversión: {e}")
         return jsonify({"error": f"Error al procesar la conversión: {str(e)}. (Verifica logs de Flask)"}), 500
     finally:
-        # Limpia los archivos temporales (archivos únicos o lista de archivos)
+        # Limpia los archivos temporales
         if temp_input_path and os.path.exists(temp_input_path):
             os.remove(temp_input_path)
         for path in temp_input_paths:
@@ -348,40 +356,66 @@ def convert_file():
         if 'temp_output_path' in locals() and temp_output_path and os.path.exists(temp_output_path):
             os.remove(temp_output_path)
             
-        # Limpieza de temporales de librerías externas
         cleanup_moviepy_temps(tempfile.gettempdir())
     
 # --------------------------------------------------------------------------------
-# 5. ENDPOINT PARA CONVERSIÓN DE URL a QR (NUEVO)
+# 5. ENDPOINT PRINCIPAL: Generación de QR (URL o Imagen)
 # --------------------------------------------------------------------------------
-@app.route('/convert-url-to-qr', methods=['POST'])
-def convert_url_to_qr():
-    data = request.json
-    url_data = data.get('url', '')
-
-    if not url_data:
-        return jsonify({"error": "No se proporcionó una URL para convertir."}), 400
-
+@app.route('/generate-qr', methods=['POST'])
+def generate_qr():
+    qr_data = request.form.get('url_data')
+    qr_type = request.form.get('qr_type')
+    
+    final_data_to_encode = ""
+    safe_filepath = None
+    
     try:
-        # Crea el objeto QR
+        if qr_type == 'image':
+            # --- Subida y almacenamiento de la imagen ---
+            if 'image_file' not in request.files:
+                return jsonify({"error": "No se recibió el archivo de imagen."}), 400
+            
+            file = request.files['image_file']
+            original_filename = file.filename
+            file_ext = os.path.splitext(original_filename)[1].lower()
+            
+            if file_ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+                return jsonify({"error": "Formato de imagen no soportado (solo JPG, PNG, WEBP)."}), 400
+
+            unique_filename = f"{os.urandom(8).hex()}{file_ext}"
+            safe_filepath = os.path.join(QR_IMAGE_FOLDER, unique_filename)
+            file.save(safe_filepath)
+
+            # CRUCIAL: Se usa la URL LOCAL (QR_SERVICE_URL) con puerto 5001
+            final_data_to_encode = f"{QR_SERVICE_URL}/qr-image/{unique_filename}"
+            
+        elif qr_type == 'url':
+            # --- Lógica para URL simple o texto ---
+            if not qr_data:
+                return jsonify({"error": "No se proporcionó una URL o texto para convertir."}), 400
+            final_data_to_encode = qr_data
+            
+        else:
+            return jsonify({"error": "Tipo de QR no especificado (debe ser 'url' o 'image')."}), 400
+
+        # --- Generación del Código QR ---
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
             box_size=10,
             border=4,
         )
-        qr.add_data(url_data)
+        qr.add_data(final_data_to_encode)
         qr.make(fit=True)
 
-        # Genera la imagen con colores del tema oscuro
         img = qr.make_image(fill_color="#1a1a2e", back_color="#e0e0e0").convert('RGB')
         
-        # Guarda la imagen QR en un buffer para enviarla como respuesta
+        # Guardar la imagen QR en un buffer para enviarla como respuesta
         img_buffer = io.BytesIO()
         img.save(img_buffer, format='PNG')
         img_buffer.seek(0)
 
-        # Envía la imagen PNG
+        # Usamos send_file para enviar la imagen PNG directamente
         return send_file(
             img_buffer, 
             mimetype='image/png', 
@@ -391,8 +425,14 @@ def convert_url_to_qr():
 
     except Exception as e:
         print(f"Error al generar el código QR: {e}")
+        if safe_filepath and os.path.exists(safe_filepath):
+            os.remove(safe_filepath)
         return jsonify({"error": f"Error al generar el QR: {str(e)}"}), 500
 
+# --------------------------------------------------------------------------------
+# NOTA: EL ENDPOINT '/qr-image/<filename>' FUE ELIMINADO Y MOVIDO A 'image_server.py'
+# --------------------------------------------------------------------------------
 
 if __name__ == '__main__':
+    # Este servidor corre en el puerto 5000 y será tunelizado por Ngrok
     app.run(host='0.0.0.0', debug=True, port=5000)
