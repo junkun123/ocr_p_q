@@ -27,11 +27,11 @@ CORS(app)
 # --------------------------------------------------------------------------------
 
 # 1. URL DE LA API: Usada por el frontend (React). Debe ser la URL de Ngrok.
-#    🚨 REEMPLAZA ESTO con tu URL de Ngrok
-API_SERVER_URL = "https://8cedf104daa9.ngrok-free.app"  
+
+API_SERVER_URL = "https://ca06f33beecd.ngrok-free.app"  
 
 # 2. URL DEL SERVICIO QR: Codificada en el QR. Usará tu IP local y el puerto 5001.
-QR_SERVICE_URL = "https://422cbbd0e808.ngrok-free.app" 
+QR_SERVICE_URL = "https://6bd7e7960cdd.ngrok-free.app" 
 
 # Define la carpeta base para uploads, relativa a la ubicación de api.py (que está en 'scripts')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'web_integration', 'uploads')
@@ -60,17 +60,17 @@ def cleanup_moviepy_temps(temp_dir):
 
 # --------------------------------------------------------------------------------
 # 1. ENDPOINT DE OCR
+# -----------------app.route('/ocr', methods=['POST'])
 # --------------------------------------------------------------------------------
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
     if 'file' not in request.files:
         return jsonify({"error": "No se recibió ningún archivo."}), 400
-
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No se seleccionó ningún archivo."}), 400
 
-    if file:
+    if file: 
         file_ext = os.path.splitext(file.filename)[1].lower()
         filepath = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(filepath)
