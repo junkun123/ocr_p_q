@@ -9,7 +9,7 @@ from PIL import Image # Pillow
 import io
 import mimetypes
 from pdf2docx import Converter as PDFtoDOCXConverter
-from docx2pdf import convert as DOCXtoPDFConverter
+# La línea 'from docx2pdf import convert as DOCXtoPDFConverter' fue ELIMINADA.
 import tempfile
 import pandas as pd 
 import json
@@ -18,6 +18,7 @@ from gtts import gTTS
 from moviepy.editor import ImageClip, AudioFileClip, VideoFileClip, ImageSequenceClip
 import glob 
 import qrcode 
+import shutil # Necesario para eliminar directorios en la limpieza
 
 app = Flask(__name__)
 CORS(app)
@@ -27,11 +28,11 @@ CORS(app)
 # --------------------------------------------------------------------------------
 
 # 1. URL DE LA API: Usada por el frontend (React). Debe ser la URL de Ngrok.
-
-API_SERVER_URL = "https://ca06f33beecd.ngrok-free.app"  
-
-# 2. URL DEL SERVICIO QR: Codificada en el QR. Usará tu IP local y el puerto 5001.
-QR_SERVICE_URL = "https://6bd7e7960cdd.ngrok-free.app" 
+# Asegúrate de que esta URL coincida con el túnel de Ngrok para el puerto 5000 (backend)
+API_SERVER_URL = "https://df06bcdaa444.ngrok-free.app"  
+# 2. URL DEL SERVICIO QR: Codificada en el QR. Debe ser la URL de Ngrok para el puerto 5001 (qr_images)
+# Asegúrate de que esta URL coincida con el túnel de Ngrok para el puerto 5001 (qr_images)
+QR_SERVICE_URL = "https://fff38f39f5af.ngrok-free.app" 
 
 # Define la carpeta base para uploads, relativa a la ubicación de api.py (que está en 'scripts')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'web_integration', 'uploads')
@@ -41,9 +42,9 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 if not os.path.exists(QR_IMAGE_FOLDER):
     os.makedirs(QR_IMAGE_FOLDER)
-
+#AIzaSyCHcyGOPNveHlKHezKZsSXwIXQSeSgmQWY
 # Configura tu clave API de Gemini 
-genai.configure(api_key="AIzaSyCXvPEexvkElKELeaR5iRK3Uu1D_iZZvHs")
+genai.configure(api_key="IzaSyCHcyGOPNveHlKHezKZsSXwIXQSeSgmQWY")
 
 # --------------------------------------------------------------------------------
 # FUNCIÓN DE LIMPIEZA
@@ -60,7 +61,6 @@ def cleanup_moviepy_temps(temp_dir):
 
 # --------------------------------------------------------------------------------
 # 1. ENDPOINT DE OCR
-# -----------------app.route('/ocr', methods=['POST'])
 # --------------------------------------------------------------------------------
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
@@ -204,6 +204,7 @@ def convert_file():
     temp_input_paths = []
     audio_file_path = None
     temp_output_path = None
+    temp_output_dir = None # Declarar aquí para el bloque finally
     output_filename = "archivo_convertido"
 
     try:
@@ -220,7 +221,7 @@ def convert_file():
                 temp_input_paths.append(path)
                 output_filename = os.path.splitext(f.filename)[0] + f"_x{len(files)}"
                 
-            # Manejo del audio opcional
+            # Manejo del audio cional
             if 'audio_file' in request.files:
                 audio_file = request.files['audio_file']
                 audio_ext = os.path.splitext(audio_file.filename)[1]
@@ -305,9 +306,30 @@ def convert_file():
                 return send_file(temp_output_path, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', as_attachment=True, download_name=output_filename + '.docx')
 
             elif conversion_type == 'word-to-pdf':
-                temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".pdf")
-                os.close(temp_output_fd)
-                DOCXtoPDFConverter(temp_input_path, temp_output_path)
+                # Reemplazo de docx2pdf por LibreOffice para compatibilidad con Linux (Debian)
+                temp_output_dir = tempfile.mkdtemp()
+                output_filename_base = os.path.splitext(os.path.basename(temp_input_path))[0]
+                
+                # Comando para usar LibreOffice en modo headless para la conversión
+                comando_libreoffice = [
+                    "libreoffice", 
+                    "--headless", 
+                    "--convert-to", 
+                    "pdf", 
+                    temp_input_path, 
+                    "--outdir", 
+                    temp_output_dir
+                ]
+                
+                # Ejecutar el comando. 'check=True' asegura que si falla, se lanza una excepción.
+                subprocess.run(comando_libreoffice, check=True)
+                
+                # El archivo de salida de LibreOffice tendrá el mismo nombre base + .pdf
+                temp_output_path = os.path.join(temp_output_dir, output_filename_base + '.pdf')
+                
+                if not os.path.exists(temp_output_path):
+                    raise Exception("LibreOffice no pudo generar el archivo PDF de salida. Asegúrate de que LibreOffice esté instalado y accesible.")
+                
                 return send_file(temp_output_path, mimetype='application/pdf', as_attachment=True, download_name=output_filename + '.pdf')
             
             elif conversion_type == 'pdf-to-csv':
@@ -354,7 +376,12 @@ def convert_file():
         if audio_file_path and os.path.exists(audio_file_path):
             os.remove(audio_file_path)
         if 'temp_output_path' in locals() and temp_output_path and os.path.exists(temp_output_path):
+            # Este es el archivo PDF convertido, que debe ser eliminado después de enviarlo
             os.remove(temp_output_path)
+        
+        # ⚠️ LIMPIEZA CRÍTICA: Elimina el directorio temporal de LibreOffice si fue creado
+        if temp_output_dir and os.path.exists(temp_output_dir):
+            shutil.rmtree(temp_output_dir)
             
         cleanup_moviepy_temps(tempfile.gettempdir())
     
@@ -386,7 +413,7 @@ def generate_qr():
             safe_filepath = os.path.join(QR_IMAGE_FOLDER, unique_filename)
             file.save(safe_filepath)
 
-            # CRUCIAL: Se usa la URL LOCAL (QR_SERVICE_URL) con puerto 5001
+            # CRUCIAL: Se usa la URL de Ngrok (QR_SERVICE_URL) con puerto 5001
             final_data_to_encode = f"{QR_SERVICE_URL}/qr-image/{unique_filename}"
             
         elif qr_type == 'url':
